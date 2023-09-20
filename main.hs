@@ -11,16 +11,16 @@ import Data.Map (Map, fromList, (!?))
 type Opcode = String
 type Byte = Word8
 type OPSize = Int
-type Instruction = (Opcode, OPSize, ByteString -> String)
+type Instruction = (Opcode, OPSize, ByteString -> Int -> String)
 
-i2ToString :: ByteString -> String
-i2ToString ops = printf "%02x%02x" (BS.index ops 2) (BS.index ops 1)
+i2ToString :: ByteString -> Int -> String
+i2ToString ops pc = printf "%02x%02x" (BS.index ops pc+2) (BS.index ops pc+1)
 
-i1ToString :: ByteString -> String
-i1ToString ops = printf "%02x" (BS.index ops 1)
+i1ToString :: ByteString -> Int -> String
+i1ToString ops pc = printf "%02x" (BS.index ops pc+1)
 
-noArg :: b -> String
-noArg = const ""
+noArg :: p1 -> p2 -> String
+noArg _ _ = ""
 
 instructionPrintMap :: Map Byte Instruction
 instructionPrintMap = fromList [
@@ -90,47 +90,47 @@ instructionPrintMap = fromList [
         (0x3f, ("CMC",      1, noArg)),
         (0x41, ("MOV B, C", 1, noArg)),
         (0x42, ("MOV B, D", 1, noArg)),
-        (0x43, ("MOV B, E", 1, noArg)),  
-        (0x44, ("MOV B, H", 1, noArg)),  
-        (0x45, ("MOV B, L", 1, noArg)),  
-        (0x46, ("MOV B, M", 1, noArg)),  
-        (0x47, ("MOV B, A", 1, noArg)),  
-        (0x48, ("MOV C, B", 1, noArg)),  
-        (0x49, ("MOV C, C", 1, noArg)),  
-        (0x4a, ("MOV C, D", 1, noArg)),  
-        (0x4b, ("MOV C, E", 1, noArg)),  
-        (0x4c, ("MOV C, H", 1, noArg)),  
-        (0x4d, ("MOV C, L", 1, noArg)),  
-        (0x4e, ("MOV C, M", 1, noArg)),  
-        (0x4f, ("MOV C, A", 1, noArg)),  
-        (0x50, ("MOV D, B", 1, noArg)),  
-        (0x51, ("MOV D, C", 1, noArg)),  
-        (0x52, ("MOV D, D", 1, noArg)),  
-        (0x53, ("MOV D, E", 1, noArg)),  
-        (0x54, ("MOV D, H", 1, noArg)),  
-        (0x55, ("MOV D, L", 1, noArg)),  
-        (0x56, ("MOV D, M", 1, noArg)),  
-        (0x57, ("MOV D, A", 1, noArg)),  
-        (0x58, ("MOV E, B", 1, noArg)),  
-        (0x59, ("MOV E, C", 1, noArg)),  
-        (0x5a, ("MOV E, D", 1, noArg)),  
-        (0x5b, ("MOV E, E", 1, noArg)),  
-        (0x5c, ("MOV E, H", 1, noArg)),  
-        (0x5d, ("MOV E, L", 1, noArg)),  
-        (0x5e, ("MOV E, M", 1, noArg)),  
-        (0x5f, ("MOV E, A", 1, noArg)),  
-        (0x60, ("MOV H, B", 1, noArg)),  
-        (0x61, ("MOV H, C", 1, noArg)),  
-        (0x62, ("MOV H, D", 1, noArg)),  
-        (0x63, ("MOV H, E", 1, noArg)),  
-        (0x64, ("MOV H, H", 1, noArg)),  
-        (0x65, ("MOV H, L", 1, noArg)),  
-        (0x66, ("MOV H, M", 1, noArg)),  
-        (0x67, ("MOV H, A", 1, noArg)),  
-        (0x68, ("MOV L, B", 1, noArg)),  
-        (0x69, ("MOV L, C", 1, noArg)),  
-        (0x6a, ("MOV L, D", 1, noArg)),  
-        (0x6b, ("MOV L, E", 1, noArg)),  
+        (0x43, ("MOV B, E", 1, noArg)),
+        (0x44, ("MOV B, H", 1, noArg)),
+        (0x45, ("MOV B, L", 1, noArg)),
+        (0x46, ("MOV B, M", 1, noArg)),
+        (0x47, ("MOV B, A", 1, noArg)),
+        (0x48, ("MOV C, B", 1, noArg)),
+        (0x49, ("MOV C, C", 1, noArg)),
+        (0x4a, ("MOV C, D", 1, noArg)),
+        (0x4b, ("MOV C, E", 1, noArg)),
+        (0x4c, ("MOV C, H", 1, noArg)),
+        (0x4d, ("MOV C, L", 1, noArg)),
+        (0x4e, ("MOV C, M", 1, noArg)),
+        (0x4f, ("MOV C, A", 1, noArg)),
+        (0x50, ("MOV D, B", 1, noArg)),
+        (0x51, ("MOV D, C", 1, noArg)),
+        (0x52, ("MOV D, D", 1, noArg)),
+        (0x53, ("MOV D, E", 1, noArg)),
+        (0x54, ("MOV D, H", 1, noArg)),
+        (0x55, ("MOV D, L", 1, noArg)),
+        (0x56, ("MOV D, M", 1, noArg)),
+        (0x57, ("MOV D, A", 1, noArg)),
+        (0x58, ("MOV E, B", 1, noArg)),
+        (0x59, ("MOV E, C", 1, noArg)),
+        (0x5a, ("MOV E, D", 1, noArg)),
+        (0x5b, ("MOV E, E", 1, noArg)),
+        (0x5c, ("MOV E, H", 1, noArg)),
+        (0x5d, ("MOV E, L", 1, noArg)),
+        (0x5e, ("MOV E, M", 1, noArg)),
+        (0x5f, ("MOV E, A", 1, noArg)),
+        (0x60, ("MOV H, B", 1, noArg)),
+        (0x61, ("MOV H, C", 1, noArg)),
+        (0x62, ("MOV H, D", 1, noArg)),
+        (0x63, ("MOV H, E", 1, noArg)),
+        (0x64, ("MOV H, H", 1, noArg)),
+        (0x65, ("MOV H, L", 1, noArg)),
+        (0x66, ("MOV H, M", 1, noArg)),
+        (0x67, ("MOV H, A", 1, noArg)),
+        (0x68, ("MOV L, B", 1, noArg)),
+        (0x69, ("MOV L, C", 1, noArg)),
+        (0x6a, ("MOV L, D", 1, noArg)),
+        (0x6b, ("MOV L, E", 1, noArg)),
         (0x6c, ("MOV L, H", 1, noArg)),
         (0x6d, ("MOV L, L", 1, noArg)),
         (0x6e, ("MOV L, M", 1, noArg)),
@@ -142,7 +142,7 @@ dissasembleOp ops pc = do putStr (printf "0x%04x" pc ++ " ")
                           let code = BS.index ops pc
                           let op = instructionPrintMap !? code
                           case op of
-                            Just (ins, size, args) -> do putStrLn (ins ++ args ops)
+                            Just (ins, size, args) -> do putStrLn (ins ++ args ops pc)
                                                          return size
                             Nothing -> do putStrLn "instruction not implemented"
                                           return 1
@@ -162,12 +162,4 @@ main = do f <- openFile "space-invaders.rom" ReadMode
           let pc = 0
           loopThroughOps buffer pc
           return 0
-
-test = do f <- openFile "space-invaders.rom" ReadMode
-          size <- hFileSize f
-          buffer <- hGet f (fromIntegral size)
-          let a = BS.index buffer 4446
-          return a
-
-
 
