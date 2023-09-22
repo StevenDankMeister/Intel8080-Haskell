@@ -1,49 +1,11 @@
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ViewPatterns #-}
+import Data.ByteString as BS
+    ( hGet, index, length, uncons, ByteString )
+import Data.Binary ( Word8 )
+import Data.Map ( (!?), fromList, Map )
 import Text.Printf (printf)
-import System.IO (openFile)
-import GHC.IO.IOMode (IOMode(ReadMode))
-import GHC.IO.Handle (hFileSize)
-import Data.ByteString as BS (ByteString, hGet, tail, head, take, index, empty, uncons, length, singleton)
-import Data.Binary (Word8, Word16)
-import Data.Map (Map, fromList, (!?), size)
-import Data.Char (intToDigit)
-import Data.Bits
-
-type Opcode = String
-type Byte = Word8
-type OPSize = Int
-type Instruction = (Opcode, OPSize)
-
-type CYB = Int
-type ACB = Int
-type SIB = Int
-type ZB = Int
-type PB = Int
-
-data CCState = CCState {
-  cy :: Word8,
-  ac :: Word8,
-  si :: Word8,
-  z  :: Word8,
-  p  :: Word8
-} deriving Show
-
-data State8080 = State8080 {
-  a      :: Word16,
-  b      :: Word8,
-  c      :: Word8,
-  d      :: Word8,
-  e      :: Word8,
-  h      :: Word8,
-  l      :: Word8,
-  sp     :: Word16,
-  pc     :: Int,
-  mem    :: ByteString,
-  ccodes :: CCState,
-  inte   :: Word8
-} deriving Show
-
+import System.IO (openFile, IOMode (ReadMode), hFileSize)
 
 i2ToString :: ByteString -> Int -> String
 i2ToString ops pc = printf "%02x%02x" (BS.index ops (pc+2)) (BS.index ops (pc+1))
@@ -53,6 +15,11 @@ i1ToString ops pc = printf "%02x" (BS.index ops (pc+1))
 
 noArg :: p1 -> p2 -> String
 noArg _ _ = ""
+
+type Opcode = String
+type Byte = Word8
+type OPSize = Int
+type Instruction = (Opcode, OPSize)
 
 instructionPrintMap :: Map Byte Instruction
 instructionPrintMap = fromList [
@@ -309,9 +276,9 @@ instructionPrintMap = fromList [
     ]
 
 dissasembleOp :: ByteString -> Int -> IO Int
-dissasembleOp ops pc = do putStr (printf "0x%04x" pc ++ " ")
+dissasembleOp ops pc = do Prelude.putStr (printf "0x%04x" pc ++ " ")
                           let code = BS.index ops pc
-                          let op = instructionPrintMap !? code
+                          let op = instructionPrintMap Data.Map.!? code
                           case op of
                             Just (ins, size) ->
                               do if | size == 3 -> putStrLn (ins ++ i2ToString ops pc)
@@ -336,46 +303,3 @@ dissasemble = do f <- openFile "space-invaders.rom" ReadMode
                  let pc = 0
                  loopThroughOps buffer pc
                  return 0
-
-instructionNotImplemented :: State8080 -> a
-instructionNotImplemented state = error ("Instruction not implemented: " ++ show state {mem = BS.singleton (BS.index (mem state) (pc state))})
-
-emulateProgram :: State8080 -> State8080
-emulateProgram state | pc state < BS.length (mem state) = emulateProgram (emulateOp state)
-                     | otherwise = state
-
-emulateOp :: State8080 -> State8080
-emulateOp state | op == 0x00 = state {pc = pc state + 1}
-                | op == 0x01 = loadPairImmediate 'B' state
-                | op == 0xc3 = jmp state
-                | otherwise = instructionNotImplemented state
-          where op = BS.index (mem state) (pc state)
-
-loadPairImmediate :: Char -> State8080 -> State8080
-loadPairImmediate 'B' state = state {b = BS.index (mem state) (pc state + 2),
-                                     c = BS.index (mem state) (pc state + 1),
-                                     pc = pc state + 3}
-
-jmp :: State8080 -> State8080
-jmp state = state {pc = fromIntegral adr}
-      where adr = b `shiftL` 8 .|. a
-            a = fromIntegral (getNNextByte state 1) :: Word16
-            b = fromIntegral (getNNextByte state 2) :: Word16
-
-getNNextByte :: State8080 -> Int -> Word8
-getNNextByte state n = BS.index (mem state) (pc state + n)
-
-main :: IO State8080
-main = do f <- openFile "space-invaders.rom" ReadMode
-          size <- hFileSize f
-          buffer <- hGet f (fromIntegral size)
-          let ccodes = CCState {cy = 0, ac = 0, si = 0, z = 0, p = 0}
-          let state = State8080 {
-            a = 0, b = 0, c = 0, d = 0,
-            e = 0, h = 0, l = 0, sp = 0,
-            pc = 0, mem = buffer,
-            ccodes = ccodes, inte = 0
-          }
-
-          let final_state = emulateProgram state
-          return final_state
