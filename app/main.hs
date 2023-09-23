@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 import Text.Printf (printf)
 import System.IO (openFile)
 import GHC.IO.IOMode (IOMode(ReadMode))
@@ -7,7 +8,7 @@ import Data.Binary (Word8, Word16)
 import Data.Map (Map, fromList, (!?), size)
 import Data.Char (intToDigit)
 import Data.Bits ( Bits((.|.), shiftL) )
-
+import Disassembler
 
 data CCState = CCState {
   cy :: Word8,
@@ -37,33 +38,50 @@ data State8080 = State8080 {
 instructionNotImplemented :: State8080 -> a
 instructionNotImplemented state = error ("Instruction not implemented: " ++ show state {mem = BS.singleton (BS.index (mem state) (pc state))})
 
-emulateProgram :: State8080 -> State8080
-emulateProgram state | pc state < BS.length (mem state) = emulateProgram (emulateOp state)
-                     | otherwise = state
+emulateProgram :: State8080 -> IO State8080
+emulateProgram state = do _ <- dissasembleOp (mem state) (pc state)
+                          (if pc state < BS.length (mem state) then emulateProgram (emulateOp state) else return state)
 
 emulateOp :: State8080 -> State8080
 emulateOp state | op == 0x00 = state {pc = pc state + 1}
-                | op == 0x01 = loadPairImmediate 'B' state
+                | op == 0x01 = loadPairImmediate "B" state
+                | op == 0x06 = movI "B" state
+                | op == 0x31 = loadPairImmediate "SP" state
                 | op == 0xc3 = jmp state
+                | op == 0xcd = call state
                 | otherwise = instructionNotImplemented state
           where op = BS.index (mem state) (pc state)
 
-loadPairImmediate :: Char -> State8080 -> State8080
-loadPairImmediate 'B' state = state {b = BS.index (mem state) (pc state + 2),
+call :: State8080 -> State8080
+call state = error "Not implemented"
+
+loadPairImmediate :: String -> State8080 -> State8080
+loadPairImmediate "B" state = state {b = BS.index (mem state) (pc state + 2),
                                      c = BS.index (mem state) (pc state + 1),
                                      pc = pc state + 3}
+loadPairImmediate "SP" state = state {sp = newSP, pc =pc state + 3}
+      where newSP = nextTwoBytesToWord16 state
 
 jmp :: State8080 -> State8080
 jmp state = state {pc = fromIntegral adr}
-      where adr = b `shiftL` 8 .|. a
-            a = fromIntegral (getNNextByte state 1) :: Word16
-            b = fromIntegral (getNNextByte state 2) :: Word16
+      where adr = nextTwoBytesToWord16 state
+
+movI :: String -> State8080 -> State8080
+movI "B" state = state {b = im, pc = nextpc}
+  where im = getNNextByte state 1
+        nextpc = pc state + 1
+
+nextTwoBytesToWord16 :: State8080 -> Word16
+nextTwoBytesToWord16 state = res
+  where res = high `shiftL` 8 .|. low
+        low = fromIntegral (getNNextByte state 1)
+        high = fromIntegral (getNNextByte state 2)
 
 getNNextByte :: State8080 -> Int -> Word8
 getNNextByte state n = BS.index (mem state) (pc state + n)
 
 main :: IO State8080
-main = do f <- openFile "space-invaders.rom" ReadMode
+main = do f <- openFile "../space-invaders.rom" ReadMode
           size <- hFileSize f
           buffer <- hGet f (fromIntegral size)
           let ccodes = CCState {cy = 0, ac = 0, si = 0, z = 0, p = 0}
@@ -74,5 +92,4 @@ main = do f <- openFile "space-invaders.rom" ReadMode
             ccodes = ccodes, inte = 0
           }
 
-          let final_state = emulateProgram state
-          return final_state
+          emulateProgram state

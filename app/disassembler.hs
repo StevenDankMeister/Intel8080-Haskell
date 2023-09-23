@@ -1,5 +1,8 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE ViewPatterns #-}
+
+module Disassembler where
+
 import Data.ByteString as BS
     ( hGet, index, length, uncons, ByteString )
 import Data.Binary ( Word8 )
@@ -296,7 +299,7 @@ loopThroughOps ops pc = do opbytes <- dissasembleOp ops pc
 
 
 dissasemble :: IO Integer
-dissasemble = do f <- openFile "space-invaders.rom" ReadMode
+dissasemble = do f <- openFile "../space-invaders.rom" ReadMode
                  size <- hFileSize f
                  buffer <- hGet f (fromIntegral size)
                  print size
