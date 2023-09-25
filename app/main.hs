@@ -5,13 +5,15 @@ import Text.Printf (printf)
 import System.IO (openFile)
 import GHC.IO.IOMode (IOMode(ReadMode))
 import GHC.IO.Handle (hFileSize)
-import Data.ByteString as BS (ByteString, hGet, tail, head, take, index, empty, uncons, length, singleton, append, snoc, pack)
+import Data.ByteString as BS (ByteString, hGet, tail, head, take, index, empty, uncons, length, singleton, append, snoc, pack, split, splitAt)
 import Data.Binary (Word8, Word16)
 import Data.Map (Map, fromList, (!?), size)
 import Data.Char (intToDigit)
-import Data.Bits ( Bits((.|.), shiftL) )
+import Data.Bits ( Bits((.|.), shiftL, (.&.), popCount, complementBit), shiftR )
 import Disassembler ( dissasembleOp, Byte )
 import Control.Monad.State (State, get, put, runState, MonadState (state), return, StateT (runStateT), MonadIO (liftIO))
+import Numeric (showHex)
+import System.Posix.Internals (puts)
 
 data CCState = CCState {
   cy :: Word8,
@@ -31,7 +33,7 @@ data State8080 = State8080 {
   l       :: Word8,
   sp      :: Word16,
   pc      :: Word16,
-  stack   :: ByteString,
+  stack   :: [Word8], -- This is just for printing
   program :: ByteString,
   ccodes  :: CCState,
   inte    :: Word8
@@ -40,27 +42,27 @@ data State8080 = State8080 {
 instance Show State8080 where
   show :: State8080 -> String
   show state = "State8080 { " ++
-               "a = " ++ show (a state) ++ ", " ++
-               "b = " ++ show (b state) ++ ", " ++
-               "c = " ++ show (c state) ++ ", " ++
-               "d = " ++ show (d state) ++ ", " ++
-               "e = " ++ show (e state) ++ ", " ++
-               "h = " ++ show (h state) ++ ", " ++
-               "l = " ++ show (l state) ++ ", " ++
-               "sp = " ++ show (sp state) ++ ", " ++
-               "pc = " ++ show (pc state) ++ ", " ++
-               "stack = " ++ show (stack state) ++ ", " ++               -- Probably dont need this?
-               "program = " ++ show (BS.head (program state)) ++ ", " ++ -- TODO: fix this
+               "a = " ++ showHex (a state) "" ++ ", " ++
+               "b = " ++ showHex (b state) "" ++ ", " ++
+               "c = " ++ showHex (c state) "" ++ ", " ++
+               "d = " ++ showHex (d state) "" ++ ", " ++
+               "e = " ++ showHex (e state) "" ++ ", " ++
+               "h = " ++ showHex (h state) "" ++ ", " ++
+               "l = " ++ showHex (l state) "" ++ ", " ++
+               "sp = " ++ showHex (sp state) "" ++ ", " ++
+               "pc = " ++ showHex (pc state) "" ++ ", " ++
+               "stack = " ++ show (stack state) ++ ", " ++
+               "program = " ++ show (BS.head (program state)) ++ ", " ++
                "ccodes = " ++ show (ccodes state) ++ ", " ++
                "inte = " ++ show (inte state) ++
                " }"
 
 type State8080M = StateT State8080 IO
 
--- instructionNotImplemented :: State8080M State8080 -> a
--- instructionNotImplemented = error ("Instruction not implemented: " ++ show state {program = BS.singleton ((program state) `pcIndex` (pc state))})
+
 instructionNotImplemented :: State8080 -> a
 instructionNotImplemented s = error ("\nInstruction not implemented: \n        " ++ show s)
+
 
 emulateProgram :: State8080M State8080
 emulateProgram = do s <- get
@@ -70,108 +72,142 @@ emulateProgram = do s <- get
                       do emulateNextOp
                          emulateProgram
                     else return s
--- emulateProgram (State8080 s) = do _ <- dissasembleOp (program s) (pc s)
 
--- emulateProgram state = do _ <- dissasembleOp (program state) (pc state)
---                           (if pc state < BS.length (program state) then emulateProgram (emulateOp state) else return state)
 
 emulateNextOp :: State8080M State8080
 emulateNextOp = do s <- get
                    let op = program s `pcIndex` s.pc
                    if | op == 0x00 -> put s {pc = s.pc + 1} >> return s
+                      | op == 0x01 -> lxi "B"
                       | op == 0xc3 -> jmp
-                      -- | op == 0x06 -> movI "B"
-                -- | op == 0x01 = lxi "B" state
+                      | op == 0x05 -> dcr "B"
+                      | op == 0x06 -> movI "B"
                 -- | op == 0x06 = movI "B" state
-                      -- | op == 0x11 -> lxi "D"
-                -- | op == 0x21 = lxi "H" state
-                      -- | op == 0x31 -> lxi "SP"
-                      -- | op == 0xcd -> call
+                      | op == 0x11 -> lxi "D"
+                      | op == 0x1a -> ldax "D"
+                      | op == 0x21 -> lxi "H"
+                      | op == 0x31 -> lxi "SP"
+                      | op == 0xcd -> do let adr = nextTwoBytesToWord16BE s.program s.pc
+                                         call adr
+                      | op == 0xff -> rst 7
                       | otherwise  -> do instructionNotImplemented s
-                -- | otherwise = instructionNotImplemented state
-          -- where op = program state `BS.index` pc state
 
-pcIndex :: ByteString -> Word16 -> Word8
-pcIndex mem pc = mem `BS.index` fromIntegral pc
+rst :: Int -> State8080M State8080
+rst 7 = do s <- get
+           call 0x38
 
--- getNNextByte :: (Integral a) => State8080 -> a -> Word8
--- getNNextByte state n = program state `pcIndex` (pc state + n)
+dcr :: String -> State8080M State8080
+dcr "B" = do s <- get
+             let b = s.b - 0x01
 
--- call :: State8080M State8080
--- call = do s <- get
---           let adr = fromIntegral (nextTwoBytesToWord16BE s)
---           let hi  = getNNextByte s 2
---           let lo  = getNNextByte s 1
---           let pushed = BS.pack [hi, lo]
---           put s {stack = s.stack `append` pushed, pc = adr, sp = s.sp - 2}
---           return s
-  -- state {stack = stack state `append` pushed, pc = fromIntegral adr, sp = sp state - 2}
+             let z = (if b == 0 then 0x01 else 0x0) :: Word8
+             let si = b .&. 0x01
+             
+             let p = fromIntegral (complementBit (popCount b `mod` 2) 0)
 
-    -- where adr     = nextTwoBytesToWord16BE state
-    --       hi      = getNNextByte state 3
-    --       lo      = getNNextByte state 2
-    --       pushed  = BS.pack [hi, lo]
+             let b_lower = s.b .&. 0x0f
+             let ac = (if b_lower < 0x01 then 0x01 else 0x0) :: Word8 -- Maybe just hardcode b_lower == 0?
 
--- lxi :: String -> State8080M State8080
+             let cc = s.ccodes {z = z, si = si, p = p, ac = ac}
+             put s {b = s.b - 1, ccodes = cc, pc = s.pc + 1}
+             return s
+
+
+call :: Word16 -> State8080M State8080
+call adr = do s <- get
+              let (hi, lo) = word16ToWord8s s.pc
+
+              stackPush hi
+              stackPush lo
+
+              s <- get
+
+              put s {pc = adr}
+              return s
+
+word16ToWord8s :: Word16 -> (Word8, Word8)
+word16ToWord8s w = (fromIntegral (w `shiftR` 8), fromIntegral w)
+
+stackPush :: Word8 -> State8080M State8080
+stackPush byte = do s <- get
+                    let mem = insertIntoByteString byte s.program (fromIntegral s.pc)
+                    put s {stack = s.stack ++ [byte], program = mem}
+                    return s
+
+insertIntoByteString :: Word8 -> ByteString -> Int -> ByteString
+insertIntoByteString byte bs n = (left `snoc` byte) `append` right
+  where (left, right) = BS.splitAt n bs
+
+lxi :: String -> State8080M State8080
 -- lxi "B" state = state {b = getNNextByte state 2,
 --                        c = getNNextByte state 1,
 --                        pc = pc state + 3}
 
--- lxi "D" = do s <- get 
---              let d = getNNextByte s 1
--- state {d = getNNextByte state 2,
---                        e = getNNextByte state 1,
---                        pc = pc state + 3}
+lxi "D" = do s <- get
+             let d = getNNextByte s.program s.pc 2
+             let e = getNNextByte s.program s.pc 1
+             put s {d = d, e = e, pc = s.pc + 3}
+             return s
+lxi "H" = do s <- get
+             let h = getNNextByte s.program s.pc 2
+             let l = getNNextByte s.program s.pc 1
+             put s {h = h, l = l, pc = s.pc + 3}
+             return s
 
--- lxi "H" state = state {h = getNNextByte state 2,
---                        l = getNNextByte state 1,
---                        pc = pc state + 3}
--- lxi "SP" = do s <- get
---               let newSP = nextTwoBytesToWord16BE s
---               put s {sp = newSP, pc = s.pc + 3}
---               return s
 
--- lxi "SP" state = state {sp = newSP, pc = pc state + 3}
---       where newSP = nextTwoBytesToWord16BE state
+lxi "SP" = do s <- get
+              let newSP = nextTwoBytesToWord16BE s.program s.pc
+              put s {sp = newSP, pc = s.pc + 3}
+              return s
+
+
+ldax :: String -> State8080M State8080
+ldax "D" = do s <- get
+              let a = concatBytes s.d s.e
+              put s {a = a, pc = s.pc + 1}
+              return s
+
+
+concatBytes :: Word8 -> Word8 -> Word16
+concatBytes x y = res
+     where low = fromIntegral y
+           high = fromIntegral x
+           res = high `shiftL` 8 .|. low
+
 
 jmp :: State8080M State8080
 jmp = do s <- get
-         adr <- nextTwoBytesToWord16BE
+         let adr = nextTwoBytesToWord16BE s.program s.pc
          put s {pc = adr}
          return s
--- jmp state = state {pc = fromIntegral adr}
---       where adr = nextTwoBytesToWord16BE state
-
--- movI :: String -> State8080 -> State8080
--- movI "B" state = state {b = im, pc = nextpc}
---   where im = getNNextByte state 1
---         nextpc = pc state + 1
--- movI :: String -> State8080M State8080
--- movI "B" = do s <- get
---               let im = getNNextByte s 1
---               put s {b = im, pc = pc s + 1}
---               return s
-              -- s { b = im, pc = pc s + 1 }
-
--- nextTwoBytesToWord16BE :: State8080 -> Word16
--- nextTwoBytesToWord16BE state = res
---   where res = high `shiftL` 8 .|. low
---         low = fromIntegral (getNNextByte state 1)
---         high = fromIntegral (getNNextByte state 2)
-nextTwoBytesToWord16BE :: State8080M Word16
-nextTwoBytesToWord16BE = do low  <- fmap fromIntegral (getNNextByte 1)
-                            high <- fmap fromIntegral (getNNextByte 2)
-                            return (high `shiftL` 8 .|. low)
 
 
-getNNextByte :: Word16 -> State8080M Word8
-getNNextByte n = do s <- get
-                    return (s.program `pcIndex` (s.pc + n))
--- getNNextByte state n = state.program `pcIndex` (state.pc + n)
--- getNNextByte :: ByteString -> Int -> Word8
--- getNNextByte b n = do s <- get
---                     let next = 5 :: Word8
---                     return s
+movI :: String -> State8080M State8080
+movI "B" = do s <- get
+              let im = getNNextByte s.program s.pc 1
+              put s {b = im, pc = s.pc + 2}
+              return s
+
+
+mov :: String -> String -> State8080M State8080
+mov "M" "A" = do s <- get
+                 return s
+
+
+nextTwoBytesToWord16BE :: ByteString -> Word16 -> Word16
+nextTwoBytesToWord16BE mem pc = res
+     where low = fromIntegral (getNNextByte mem pc 1)
+           high = fromIntegral (getNNextByte mem pc 2)
+           res = high `shiftL` 8 .|. low
+
+
+getNNextByte :: ByteString -> Word16 -> Int -> Word8
+getNNextByte mem pc n = mem `pcIndex` (pc + fromIntegral n)
+
+
+pcIndex :: ByteString -> Word16 -> Word8
+pcIndex mem pc = mem `BS.index` fromIntegral pc
+
 
 main :: IO (State8080, State8080)
 main = do f <- openFile "../space-invaders.rom" ReadMode
@@ -180,8 +216,8 @@ main = do f <- openFile "../space-invaders.rom" ReadMode
           let ccodes = CCState {cy = 0, ac = 0, si = 0, z = 0, p = 0}
           let startState = State8080 {
             a = 0, b = 0, c = 0, d = 0,
-            e = 0, h = 0, l = 0, sp = 0, stack = empty,
-            pc = 0, program = buffer,
+            e = 0, h = 0, l = 0, sp = 0,
+            pc = 0, program = buffer, stack = [],
             ccodes = ccodes, inte = 0
           }
           runStateT emulateProgram startState
