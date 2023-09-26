@@ -89,9 +89,11 @@ emulateNextOp = do s <- get
                       | op == 0x11 -> lxi "D"
                       | op == 0x1a -> ldax "D"
                       | op == 0x21 -> lxi "H"
+                      | op == 0x23 -> inx "H"
                       | op == 0x31 -> lxi "SP"
                       | op == 0x32 -> do let adr = nextTwoBytesToWord16BE s.program s.pc
                                          sta adr
+                      | op == 0x36 -> movI "M"
                       | op == 0x77 -> mov "M" "A"
                       | op == 0xc2 -> do let adr = nextTwoBytesToWord16BE s.program s.pc
                                          jnz adr
@@ -188,13 +190,21 @@ lxi "SP" = do s <- get
 
 ldax :: String -> State8080M State8080
 ldax "D" = do s <- get
-              let a = concatBytes s.d s.e
+              let a = concatBytesBE s.d s.e
               put s {a = a, pc = s.pc + 1}
               return s
 
 
-concatBytes :: Word8 -> Word8 -> Word16
-concatBytes x y = res
+inx :: String -> State8080M State8080
+inx "H" = do s <- get
+             let hl = (concatBytesBE s.h s.l) + 1
+             let (h, l) = word16ToWord8s hl
+             put s {h = h, l = l, pc = s.pc + 2}
+             return s
+
+
+concatBytesBE :: Word8 -> Word8 -> Word16
+concatBytesBE x y = res
      where low = fromIntegral y
            high = fromIntegral x
            res = high `shiftL` 8 .|. low
@@ -218,7 +228,7 @@ ret = do s <- get
          lo <- stackPop
          hi <- stackPop
          
-         let adr = concatBytes hi lo
+         let adr = concatBytesBE hi lo
          s <- get
          put s {pc = adr + 3}
          return s
@@ -228,11 +238,17 @@ movI "B" = do s <- get
               let im = getNNextByte s.program s.pc 1
               put s {b = im, pc = s.pc + 2}
               return s
+movI "M" = do s <- get
+              let adr = concatBytesBE s.h s.l
+              let im = getNNextByte s.program s.pc 1
+              let mem = insertIntoByteString im s.program (fromIntegral adr)
+              put s {program = mem, pc = s.pc + 2}
+              return s
 
 
 mov :: String -> String -> State8080M State8080
 mov "M" "A" = do s <- get
-                 let adr = concatBytes s.h s.l
+                 let adr = concatBytesBE s.h s.l
                  sta adr
 
 
