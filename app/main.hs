@@ -24,10 +24,10 @@ data CCState = CCState {
   si :: Word8,
   z  :: Word8,
   p  :: Word8
-} deriving Show
+}
 
 data State8080 = State8080 {
-  a       :: Word16,
+  a       :: Word8,
   b       :: Word8,
   c       :: Word8,
   d       :: Word8,
@@ -60,6 +60,16 @@ instance Show State8080 where
                "inte = " ++ show (inte state) ++
                " }"
 
+instance Show CCState where
+  show :: CCState -> String
+  show ccstate = "CCState { " ++
+                 "cy = " ++ showHex (cy ccstate) "" ++ ", " ++
+                 "ac = " ++ showHex (ac ccstate) "" ++ ", " ++
+                 "si = " ++ showHex (si ccstate) "" ++ ", " ++
+                 "z = " ++ showHex (z ccstate) "" ++ ", " ++
+                 "p = " ++ showHex (p ccstate) "" ++
+                 " }"
+
 type State8080M = StateT State8080 IO
 
 
@@ -79,15 +89,15 @@ emulateProgram = do s <- get
 
 emulateNextOp :: State8080M State8080
 emulateNextOp = do s <- get
-                   let op = program s `pcIndex` s.pc
+                   let op = program s `getByteAtAdr` s.pc
                    if | op == 0x00 -> put s {pc = s.pc + 1} >> return s
                       | op == 0x01 -> lxi "B"
                       | op == 0xc3 -> jmp
                       | op == 0x05 -> dcr "B"
                       | op == 0x06 -> movI "B"
-                -- | op == 0x06 = movI "B" state
                       | op == 0x11 -> lxi "D"
                       | op == 0x1a -> ldax "D"
+                      | op == 0x0e -> movI "C"
                       | op == 0x21 -> lxi "H"
                       | op == 0x23 -> inx "H"
                       | op == 0x31 -> lxi "SP"
@@ -100,15 +110,32 @@ emulateNextOp = do s <- get
                       | op == 0xc9 -> ret
                       | op == 0xcd -> do let adr = nextTwoBytesToWord16BE s.program s.pc
                                          call adr
+                      | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
                       | op == 0xff -> rst 7
                       | otherwise  -> do instructionNotImplemented s
 
+cpi :: Word8 -> State8080M State8080
+cpi byte = do s <- get
+              let byte = fromIntegral byte
+              let res = s.a - byte
+              
+              let z = if res == 0 then 1 else 0 :: Word8 
+              let si = res .&. 0x01
+              let p = fromIntegral (complementBit (popCount res `mod` 2) 0)
+              let cy = if s.a < byte then 1 else 0 :: Word8
+
+              let b_lower = byte .&. 0x0f
+              let a_lower = s.a .&. 0x0f
+              let ac = (if a_lower < b_lower then 1 else 0) :: Word8
+
+              let cc = s.ccodes {z = z, si = si, p = p, ac = ac, cy = cy}
+              put s {pc = s.pc + 2}
+              return s
+
 sta :: Word16 -> State8080M State8080
 sta adr = do s <- get
-             let (lo, hi) = word16ToWord8s s.a
-             let mem = insertIntoByteString lo s.program (fromIntegral adr)
-             let mem' = insertIntoByteString hi s.program (fromIntegral (adr + 1))
-             put s {program = mem', pc = s.pc + 3}
+             let mem = insertIntoByteString s.a s.program (fromIntegral adr)
+             put s {program = mem, pc = s.pc + 3}
              return s
 
 rst :: Int -> State8080M State8080
@@ -190,7 +217,8 @@ lxi "SP" = do s <- get
 
 ldax :: String -> State8080M State8080
 ldax "D" = do s <- get
-              let a = concatBytesBE s.d s.e
+              let adr = concatBytesBE s.d s.e
+              let a = getByteAtAdr s.program adr
               put s {a = a, pc = s.pc + 1}
               return s
 
@@ -218,8 +246,8 @@ jmp = do s <- get
 
 jnz :: Word16 -> State8080M State8080
 jnz adr = do s <- get
-             (if s.ccodes.z == 0x1 
-              then put s {pc = adr} 
+             (if s.ccodes.z == 0x1
+              then put s {pc = adr}
               else put s {pc = s.pc + 3})
              return s
 
@@ -227,7 +255,7 @@ ret :: State8080M State8080
 ret = do s <- get
          lo <- stackPop
          hi <- stackPop
-         
+
          let adr = concatBytesBE hi lo
          s <- get
          put s {pc = adr + 3}
@@ -244,7 +272,10 @@ movI "M" = do s <- get
               let mem = insertIntoByteString im s.program (fromIntegral adr)
               put s {program = mem, pc = s.pc + 2}
               return s
-
+movI "C" = do s <- get
+              let im = getNNextByte s.program s.pc 1
+              put s {c = im, pc = s.pc + 2}
+              return s
 
 mov :: String -> String -> State8080M State8080
 mov "M" "A" = do s <- get
@@ -260,15 +291,15 @@ nextTwoBytesToWord16BE mem pc = res
 
 
 getNNextByte :: ByteString -> Word16 -> Int -> Word8
-getNNextByte mem pc n = mem `pcIndex` (pc + fromIntegral n)
+getNNextByte mem pc n = mem `getByteAtAdr` (pc + fromIntegral n)
 
 
-pcIndex :: ByteString -> Word16 -> Word8
-pcIndex mem pc = mem `BS.index` fromIntegral pc
+getByteAtAdr :: ByteString -> Word16 -> Word8
+getByteAtAdr mem pc = mem `BS.index` fromIntegral pc
 
 
 main :: IO (State8080, State8080)
-main = do f <- openFile "../space-invaders.rom" ReadMode
+main = do f <- openFile "./space-invaders.rom" ReadMode
           size <- hFileSize f
           buffer <- hGet f (fromIntegral size)
           let memory = buffer `BS.append` pack (replicate (0x10000 - fromIntegral size) 0)
