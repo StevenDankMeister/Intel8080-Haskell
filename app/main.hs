@@ -152,10 +152,12 @@ emulateNextOp = do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jnz adr
     | op == 0xc3 -> jmp
+    | op == 0xc5 -> stackPushRegister "B"
     | op == 0xc9 -> ret
     | op == 0xcd -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         call adr
+    | op == 0xd3 -> out
     | op == 0xd5 -> stackPushRegister "D"
     | op == 0xe1 -> stackPopRegister "H"
     | op == 0xeb -> xchg
@@ -163,6 +165,13 @@ emulateNextOp = do
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
     | op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented s
+
+-- TODO: IMPLEMENT THIS
+out :: State8080M State8080
+out = do
+  s <- get
+  put s {pc = s.pc + 2}
+  return s
 
 xchg :: State8080M State8080
 xchg = do
@@ -285,6 +294,14 @@ stackPushRegister "H" = do
   s <- get
   stackPush s.h
   stackPush s.l
+
+  s <- get
+  put s {pc = s.pc + 1}
+  return s
+stackPushRegister "B" = do
+  s <- get
+  stackPush s.b
+  stackPush s.c
 
   s <- get
   put s {pc = s.pc + 1}
