@@ -133,7 +133,9 @@ emulateNextOp = do
     | op == 0x01 -> lxi "B"
     | op == 0x05 -> dcr "B"
     | op == 0x06 -> movI "B"
+    | op == 0x09 -> dad "B"
     | op == 0x11 -> lxi "D"
+    | op == 0x13 -> inx "D"
     | op == 0x19 -> dad "D"
     | op == 0x0e -> movI "C"
     | op == 0x1a -> ldax "D"
@@ -148,9 +150,11 @@ emulateNextOp = do
     | op == 0x36 -> movI "M"
     | op == 0x6f -> mov "L" "A"
     | op == 0x77 -> mov "M" "A"
+    | op == 0x7c -> mov "A" "H"
     | op == 0xc2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jnz adr
+    | op == 0xc1 -> stackPopRegister "B"
     | op == 0xc3 -> jmp
     | op == 0xc5 -> stackPushRegister "B"
     | op == 0xc9 -> ret
@@ -186,6 +190,18 @@ xchg = do
   return s
 
 dad :: String -> State8080M State8080
+dad "B" = do
+  s <- get
+  let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
+  let be = fromIntegral (concatBytesBE s.b s.c) :: Word32
+  let res = hl + be
+  let carry = if res > 0xffff then 1 else 0
+
+  let res' = fromIntegral res :: Word16
+
+  let (h, l) = word16ToWord8s res'
+  put s {h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes {cy = carry}}
+  return s
 dad "H" = do
   s <- get
   let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
@@ -253,7 +269,7 @@ dcr "B" = do
   let p = fromIntegral (complementBit (popCount b `mod` 2) 0)
 
   let b_lower = s.b .&. 0x0f
-  let ac = (if b_lower < 0x01 then 0x01 else 0x0) :: Word8 -- Maybe just hardcode b_lower == 0?
+  let ac = (if b_lower < 0x01 then 1 else 0) :: Word8 -- Maybe just hardcode b_lower == 0?
   let cc = s.ccodes {z = z, si = si, p = p, ac = ac}
   put s {b = s.b - 1, ccodes = cc, pc = s.pc + 1}
   return s
@@ -315,6 +331,14 @@ stackPop = do
   return popped
 
 stackPopRegister :: String -> State8080M State8080
+stackPopRegister "B" = do
+  c <- stackPop
+  b <- stackPop
+
+  s <- get
+  put s {b = b, c = c, pc = s.pc + 1}
+
+  return s
 stackPopRegister "H" = do
   l <- stackPop
   h <- stackPop
@@ -330,10 +354,12 @@ insertIntoByteString byte bs n = (BS.init left `snoc` byte) `append` right
     (left, right) = BS.splitAt (n + 1) bs
 
 lxi :: String -> State8080M State8080
--- lxi "B" state = state {b = getNNextByte state 2,
---                        c = getNNextByte state 1,
---                        pc = pc state + 3}
-
+lxi "B" = do
+  s <- get
+  let b = getNNextByte s.program s.pc 2
+  let c = getNNextByte s.program s.pc 1
+  put s {b = b, c = c, pc = s.pc + 3}
+  return s
 lxi "D" = do
   s <- get
   let d = getNNextByte s.program s.pc 2
@@ -365,7 +391,13 @@ inx "H" = do
   s <- get
   let hl = (concatBytesBE s.h s.l) + 1
   let (h, l) = word16ToWord8s hl
-  put s {h = h, l = l, pc = s.pc + 2}
+  put s {h = h, l = l, pc = s.pc + 1}
+  return s
+inx "D" = do
+  s <- get
+  let de = (concatBytesBE s.d s.e) + 1
+  let (d, e) = word16ToWord8s de
+  put s {d = d, e = e, pc = s.pc + 1}
   return s
 
 concatBytesBE :: Word8 -> Word8 -> Word16
@@ -399,7 +431,7 @@ ret = do
 
   let adr = concatBytesBE hi lo
   s <- get
-  put s {pc = adr + 3}
+  put s {pc = adr + 1}
   return s
 
 movI :: String -> State8080M State8080
@@ -437,6 +469,10 @@ mov "M" "A" = do
 mov "L" "A" = do
   s <- get
   put s {l = s.a, pc = s.pc + 1}
+  return s
+mov "A" "H" = do
+  s <- get
+  put s {a = s.h, pc = s.pc + 1}
   return s
 
 nextTwoBytesToWord16BE :: ByteString -> Word16 -> Word16
