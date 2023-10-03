@@ -13,7 +13,6 @@ import GHC.IO.Handle (hFileSize)
 import GHC.IO.IOMode (IOMode (ReadMode))
 import Numeric (showHex)
 import System.IO (openFile)
-import System.Posix.Internals (puts)
 import Text.Printf (printf)
 
 showHexList :: [Word8] -> [String]
@@ -132,12 +131,12 @@ emulateNextOp = do
   if
     | op == 0x00 -> put s {pc = s.pc + 1} >> return s
     | op == 0x01 -> lxi "B"
-    | op == 0xc3 -> jmp
     | op == 0x05 -> dcr "B"
     | op == 0x06 -> movI "B"
     | op == 0x11 -> lxi "D"
-    | op == 0x1a -> ldax "D"
+    | op == 0x19 -> dad "D"
     | op == 0x0e -> movI "C"
+    | op == 0x1a -> ldax "D"
     | op == 0x21 -> lxi "H"
     | op == 0x23 -> inx "H"
     | op == 0x26 -> movI "H"
@@ -152,6 +151,7 @@ emulateNextOp = do
     | op == 0xc2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jnz adr
+    | op == 0xc3 -> jmp
     | op == 0xc9 -> ret
     | op == 0xcd -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -173,6 +173,18 @@ dad "H" = do
 
   let (h, l) = word16ToWord8s res'
 
+  put s {h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes {cy = carry}}
+  return s
+dad "D" = do
+  s <- get
+  let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
+  let de = fromIntegral (concatBytesBE s.d s.e) :: Word32
+  let res = hl + de
+  let carry = if res > 0xffff then 1 else 0
+
+  let res' = fromIntegral res :: Word16
+
+  let (h, l) = word16ToWord8s res'
   put s {h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes {cy = carry}}
   return s
 
@@ -405,6 +417,30 @@ main = do
   size <- hFileSize f
   buffer <- hGet f (fromIntegral size)
   let memory = buffer `BS.append` pack (replicate (0x10000 - fromIntegral size) 0)
+  let ccodes = CCState {cy = 0, ac = 0, si = 0, z = 0, p = 0}
+
+  let startState =
+        State8080
+          { a = 0,
+            b = 0,
+            c = 0,
+            d = 0,
+            e = 0,
+            h = 0,
+            l = 0,
+            sp = 0,
+            pc = 0,
+            program = memory,
+            stack = [],
+            ccodes = ccodes,
+            inte = 0
+          }
+  runStateT emulateProgram startState
+
+-- Just for some manual testing
+test :: IO (State8080, State8080)
+test = do
+  let memory = pack (replicate 0x10000 0)
   let ccodes = CCState {cy = 0, ac = 0, si = 0, z = 0, p = 0}
 
   let startState =
