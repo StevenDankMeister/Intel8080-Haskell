@@ -3,7 +3,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
 import Control.Monad.State (MonadIO (liftIO), MonadState (state), State, StateT (runStateT), evalStateT, get, modify, put, return, runState)
-import Data.Binary (Word16, Word32, Word8)
+import Data.Binary (Binary (), Word16, Word32, Word8)
 import Data.Bits (Bits (complementBit, popCount, shiftL, (.&.), (.|.)), shiftR, xor)
 import Data.ByteString as BS (ByteString, append, empty, hGet, head, index, init, length, pack, singleton, snoc, split, splitAt, tail, take, uncons)
 import Data.Char (intToDigit)
@@ -157,10 +157,24 @@ emulateNextOp = do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         call adr
     | op == 0xd5 -> stackPushRegister "D"
+    | op == 0xe1 -> stackPopRegister "H"
+    | op == 0xeb -> xchg
     | op == 0xe5 -> stackPushRegister "H"
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
     | op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented s
+
+xchg :: State8080M State8080
+xchg = do
+  s <- get
+  let h = s.h
+  let d = s.d
+
+  let l = s.l
+  let e = s.e
+
+  put s {pc = s.pc + 1, h = d, d = h, l = e, e = l}
+  return s
 
 dad :: String -> State8080M State8080
 dad "H" = do
@@ -280,8 +294,18 @@ stackPop :: State8080M Word8
 stackPop = do
   s <- get
   let popped = getNNextByte s.program s.sp 0
-  put s {stack = Prelude.init (s.stack), sp = s.sp + 1}
+  put s {stack = Prelude.init s.stack, sp = s.sp + 1}
   return popped
+
+stackPopRegister :: String -> State8080M State8080
+stackPopRegister "H" = do
+  l <- stackPop
+  h <- stackPop
+
+  s <- get
+  put s {h = h, l = l, pc = s.pc + 1}
+
+  return s
 
 insertIntoByteString :: Word8 -> ByteString -> Int -> ByteString
 insertIntoByteString byte bs n = (BS.init left `snoc` byte) `append` right
