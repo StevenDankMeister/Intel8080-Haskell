@@ -115,7 +115,7 @@ emulateProgram :: State8080M State8080
 emulateProgram = do
   s <- get
   let pc = fromIntegral s.pc
-  _ <- liftIO (dissasembleOp (s.program) pc)
+  _ <- liftIO (dissasembleOp s.program pc)
   if pc < BS.length s.program
     then do
       emulateNextOp
@@ -138,6 +138,7 @@ emulateNextOp = do
     | op == 0x13 -> inxD
     | op == 0x19 -> dadD
     | op == 0x0e -> movIC
+    | op == 0x0f -> rrc
     | op == 0x1a -> ldaxD
     | op == 0x21 -> lxiH
     | op == 0x23 -> inxH
@@ -172,8 +173,20 @@ emulateNextOp = do
     | op == 0xeb -> xchg
     | op == 0xe5 -> stackPushRegisterH
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
+    | op == 0xf5 -> stackPushRegisterPSW
     | op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented s
+
+rrc :: State8080M State8080
+rrc = do
+  s <- get
+
+  let cy = s.a .&. 0x1
+  let mask = cy `shiftL` 7
+  let a = (s.a `shiftR` 1) .|. mask
+
+  put s {a = a, pc = s.pc + 1, ccodes = s.ccodes {cy = cy}}
+  return s
 
 lda :: Word16 -> State8080M State8080
 lda adr = do
@@ -357,6 +370,26 @@ stackPushRegisterB = do
   put s {pc = s.pc + 1}
   return s
 
+stackPushRegisterPSW :: State8080M State8080
+stackPushRegisterPSW = do
+  s <- get
+  let psw = flagsToByte s.ccodes
+
+  stackPush s.a
+  stackPush psw
+
+  put s {pc = s.pc + 1}
+  return s
+
+flagsToByte :: CCState -> Word8
+flagsToByte ccstate = res
+  where
+    sign = ccstate.si `shiftL` 7
+    zero = ccstate.z `shiftL` 6
+    aux = ccstate.ac `shiftL` 4
+    parity = ccstate.p `shiftL` 2
+    res = sign .|. zero .|. aux .|. parity .|. ccstate.cy .|. 0x2
+
 stackPop :: State8080M Word8
 stackPop = do
   s <- get
@@ -431,7 +464,7 @@ ldaxD = do
 inxH :: State8080M State8080
 inxH = do
   s <- get
-  let hl = (concatBytesBE s.h s.l) + 1
+  let hl = concatBytesBE s.h s.l + 1
   let (h, l) = word16ToWord8s hl
   put s {h = h, l = l, pc = s.pc + 1}
   return s
@@ -439,7 +472,7 @@ inxH = do
 inxD :: State8080M State8080
 inxD = do
   s <- get
-  let de = (concatBytesBE s.d s.e) + 1
+  let de = concatBytesBE s.d s.e + 1
   let (d, e) = word16ToWord8s de
   put s {d = d, e = e, pc = s.pc + 1}
   return s
