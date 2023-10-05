@@ -4,7 +4,7 @@
 
 import Control.Monad.State (MonadIO (liftIO), MonadState (state), State, StateT (runStateT), evalStateT, get, modify, put, return, runState)
 import Data.Binary (Binary (), Word16, Word32, Word8)
-import Data.Bits (Bits (complementBit, popCount, shiftL, (.&.), (.|.)), shiftR, xor)
+import Data.Bits (Bits (complementBit, popCount, shiftL, (.&.), (.|.), testBit), shiftR, xor)
 import Data.ByteString as BS (ByteString, append, empty, hGet, head, index, init, length, pack, singleton, snoc, split, splitAt, tail, take, uncons)
 import Data.Char (intToDigit)
 import Data.Map (Map, fromList, size, (!?))
@@ -19,11 +19,11 @@ showHexList :: [Word8] -> [String]
 showHexList = map (`showHex` "")
 
 data CCState = CCState
-  { cy :: Word8,
-    ac :: Word8,
-    si :: Word8,
-    z :: Word8,
-    p :: Word8
+  { cy :: Word8, -- Carry
+    ac :: Word8, -- Aux carry
+    si :: Word8, -- Sign
+    z :: Word8,  -- Zero
+    p :: Word8   -- Parity
   }
 
 data State8080 = State8080
@@ -148,6 +148,10 @@ emulateNextOp = do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         sta adr
     | op == 0x36 -> movI "M"
+    | op == 0x3a -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        lda adr
+    | op == 0x5c -> mov "E" "H"
     | op == 0x6f -> mov "L" "A"
     | op == 0x77 -> mov "M" "A"
     | op == 0x7c -> mov "A" "H"
@@ -164,11 +168,34 @@ emulateNextOp = do
     | op == 0xd3 -> out
     | op == 0xd5 -> stackPushRegister "D"
     | op == 0xe1 -> stackPopRegister "H"
+    | op == 0xe6 -> ani (getNNextByte s.program s.pc 1)
     | op == 0xeb -> xchg
     | op == 0xe5 -> stackPushRegister "H"
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
     | op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented s
+
+
+lda :: Word16 -> State8080M State8080
+lda adr = do
+  s <- get
+  let res = getByteAtAdr s.program adr
+  put s {a = res, pc = s.pc + 3}
+
+  return s
+
+
+ani :: Word8 -> State8080M State8080
+ani byte = do
+  s <- get
+  let a = s.a .&. byte
+  let sign = a .&. 0x1
+  let carry = 0
+  let zero = if a == 0 then 1 else 0
+  let p = fromIntegral (complementBit (popCount a `mod` 2) 0)
+
+  put s {a = a, pc = s.pc + 2, ccodes = s.ccodes {si = sign, cy = carry, z = zero, p = p}}
+  return s
 
 -- TODO: IMPLEMENT THIS
 out :: State8080M State8080
@@ -474,6 +501,10 @@ mov "A" "H" = do
   s <- get
   put s {a = s.h, pc = s.pc + 1}
   return s
+mov "E" "H" = do
+  s <- get
+  put s {e = s.h, pc = s.pc + 1}
+  return s
 
 nextTwoBytesToWord16BE :: ByteString -> Word16 -> Word16
 nextTwoBytesToWord16BE mem pc = res
@@ -517,12 +548,14 @@ main = do
 -- Just for some manual testing
 test :: IO (State8080, State8080)
 test = do
-  let memory = pack (replicate 0x10000 0)
+  let memory = pack (replicate 0x5 0)
+  let testbytes = pack [0xe6, 0xff]
   let ccodes = CCState {cy = 0, ac = 0, si = 0, z = 0, p = 0}
 
+  let test_memory = append testbytes memory
   let startState =
         State8080
-          { a = 0,
+          { a = 1,
             b = 0,
             c = 0,
             d = 0,
@@ -531,7 +564,7 @@ test = do
             l = 0,
             sp = 0,
             pc = 0,
-            program = memory,
+            program = test_memory,
             stack = [],
             ccodes = ccodes,
             inte = 0
