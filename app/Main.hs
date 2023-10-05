@@ -4,7 +4,7 @@
 
 import Control.Monad.State (MonadIO (liftIO), MonadState (state), State, StateT (runStateT), evalStateT, get, modify, put, return, runState)
 import Data.Binary (Binary (), Word16, Word32, Word8)
-import Data.Bits (Bits (complementBit, popCount, shiftL, (.&.), (.|.), testBit), shiftR, xor)
+import Data.Bits (Bits (complementBit, popCount, shiftL, testBit, (.&.), (.|.)), shiftR, xor)
 import Data.ByteString as BS (ByteString, append, empty, hGet, head, index, init, length, pack, singleton, snoc, split, splitAt, tail, take, uncons)
 import Data.Char (intToDigit)
 import Data.Map (Map, fromList, size, (!?))
@@ -22,8 +22,8 @@ data CCState = CCState
   { cy :: Word8, -- Carry
     ac :: Word8, -- Aux carry
     si :: Word8, -- Sign
-    z :: Word8,  -- Zero
-    p :: Word8   -- Parity
+    z :: Word8, -- Zero
+    p :: Word8 -- Parity
   }
 
 data State8080 = State8080
@@ -130,51 +130,50 @@ emulateNextOp = do
   let op = program s `getByteAtAdr` s.pc
   if
     | op == 0x00 -> put s {pc = s.pc + 1} >> return s
-    | op == 0x01 -> lxi "B"
-    | op == 0x05 -> dcr "B"
-    | op == 0x06 -> movI "B"
-    | op == 0x09 -> dad "B"
-    | op == 0x11 -> lxi "D"
-    | op == 0x13 -> inx "D"
-    | op == 0x19 -> dad "D"
-    | op == 0x0e -> movI "C"
-    | op == 0x1a -> ldax "D"
-    | op == 0x21 -> lxi "H"
-    | op == 0x23 -> inx "H"
-    | op == 0x26 -> movI "H"
-    | op == 0x29 -> dad "H"
-    | op == 0x31 -> lxi "SP"
+    | op == 0x01 -> lxiB
+    | op == 0x05 -> dcrB
+    | op == 0x06 -> movIB
+    | op == 0x09 -> dadB
+    | op == 0x11 -> lxiD
+    | op == 0x13 -> inxD
+    | op == 0x19 -> dadD
+    | op == 0x0e -> movIC
+    | op == 0x1a -> ldaxD
+    | op == 0x21 -> lxiH
+    | op == 0x23 -> inxH
+    | op == 0x26 -> movIH
+    | op == 0x29 -> dadH
+    | op == 0x31 -> lxiSP
     | op == 0x32 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         sta adr
-    | op == 0x36 -> movI "M"
+    | op == 0x36 -> movIM
     | op == 0x3a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lda adr
-    | op == 0x5c -> mov "E" "H"
-    | op == 0x6f -> mov "L" "A"
-    | op == 0x77 -> mov "M" "A"
-    | op == 0x7c -> mov "A" "H"
+    | op == 0x5c -> movEH
+    | op == 0x6f -> movLA
+    | op == 0x77 -> movMA
+    | op == 0x7c -> movAH
     | op == 0xc2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jnz adr
-    | op == 0xc1 -> stackPopRegister "B"
+    | op == 0xc1 -> stackPopRegisterB
     | op == 0xc3 -> jmp
-    | op == 0xc5 -> stackPushRegister "B"
+    | op == 0xc5 -> stackPushRegisterB
     | op == 0xc9 -> ret
     | op == 0xcd -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         call adr
     | op == 0xd3 -> out
-    | op == 0xd5 -> stackPushRegister "D"
-    | op == 0xe1 -> stackPopRegister "H"
+    | op == 0xd5 -> stackPushRegisterD
+    | op == 0xe1 -> stackPopRegisterH
     | op == 0xe6 -> ani (getNNextByte s.program s.pc 1)
     | op == 0xeb -> xchg
-    | op == 0xe5 -> stackPushRegister "H"
+    | op == 0xe5 -> stackPushRegisterH
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
     | op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented s
-
 
 lda :: Word16 -> State8080M State8080
 lda adr = do
@@ -183,7 +182,6 @@ lda adr = do
   put s {a = res, pc = s.pc + 3}
 
   return s
-
 
 ani :: Word8 -> State8080M State8080
 ani byte = do
@@ -216,8 +214,9 @@ xchg = do
   put s {pc = s.pc + 1, h = d, d = h, l = e, e = l}
   return s
 
-dad :: String -> State8080M State8080
-dad "B" = do
+-- dad :: State8080M State8080
+dadB :: State8080M State8080
+dadB = do
   s <- get
   let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
   let be = fromIntegral (concatBytesBE s.b s.c) :: Word32
@@ -229,7 +228,9 @@ dad "B" = do
   let (h, l) = word16ToWord8s res'
   put s {h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes {cy = carry}}
   return s
-dad "H" = do
+
+dadH :: State8080M State8080
+dadH = do
   s <- get
   let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
   let res = hl + hl
@@ -241,7 +242,9 @@ dad "H" = do
 
   put s {h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes {cy = carry}}
   return s
-dad "D" = do
+
+dadD :: State8080M State8080
+dadD = do
   s <- get
   let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
   let de = fromIntegral (concatBytesBE s.d s.e) :: Word32
@@ -285,8 +288,8 @@ rst 7 = do
   s <- get
   call 0x38
 
-dcr :: String -> State8080M State8080
-dcr "B" = do
+dcrB :: State8080M State8080
+dcrB = do
   s <- get
   let b = s.b - 0x01
 
@@ -324,8 +327,8 @@ stackPush byte = do
   put s {stack = s.stack ++ [byte], program = mem, sp = s.sp - 1}
   return s
 
-stackPushRegister :: String -> State8080M State8080
-stackPushRegister "D" = do
+stackPushRegisterD :: State8080M State8080
+stackPushRegisterD = do
   s <- get
   stackPush s.d
   stackPush s.e
@@ -333,7 +336,9 @@ stackPushRegister "D" = do
   s <- get
   put s {pc = s.pc + 1}
   return s
-stackPushRegister "H" = do
+
+stackPushRegisterH :: State8080M State8080
+stackPushRegisterH = do
   s <- get
   stackPush s.h
   stackPush s.l
@@ -341,7 +346,9 @@ stackPushRegister "H" = do
   s <- get
   put s {pc = s.pc + 1}
   return s
-stackPushRegister "B" = do
+
+stackPushRegisterB :: State8080M State8080
+stackPushRegisterB = do
   s <- get
   stackPush s.b
   stackPush s.c
@@ -357,8 +364,8 @@ stackPop = do
   put s {stack = Prelude.init s.stack, sp = s.sp + 1}
   return popped
 
-stackPopRegister :: String -> State8080M State8080
-stackPopRegister "B" = do
+stackPopRegisterB :: State8080M State8080
+stackPopRegisterB = do
   c <- stackPop
   b <- stackPop
 
@@ -366,7 +373,9 @@ stackPopRegister "B" = do
   put s {b = b, c = c, pc = s.pc + 1}
 
   return s
-stackPopRegister "H" = do
+
+stackPopRegisterH :: State8080M State8080
+stackPopRegisterH = do
   l <- stackPop
   h <- stackPop
 
@@ -380,47 +389,55 @@ insertIntoByteString byte bs n = (BS.init left `snoc` byte) `append` right
   where
     (left, right) = BS.splitAt (n + 1) bs
 
-lxi :: String -> State8080M State8080
-lxi "B" = do
+lxiB :: State8080M State8080
+lxiB = do
   s <- get
   let b = getNNextByte s.program s.pc 2
   let c = getNNextByte s.program s.pc 1
   put s {b = b, c = c, pc = s.pc + 3}
   return s
-lxi "D" = do
+
+lxiD :: State8080M State8080
+lxiD = do
   s <- get
   let d = getNNextByte s.program s.pc 2
   let e = getNNextByte s.program s.pc 1
   put s {d = d, e = e, pc = s.pc + 3}
   return s
-lxi "H" = do
+
+lxiH :: State8080M State8080
+lxiH = do
   s <- get
   let h = getNNextByte s.program s.pc 2
   let l = getNNextByte s.program s.pc 1
   put s {h = h, l = l, pc = s.pc + 3}
   return s
-lxi "SP" = do
+
+lxiSP :: State8080M State8080
+lxiSP = do
   s <- get
   let newSP = nextTwoBytesToWord16BE s.program s.pc
   put s {sp = newSP, pc = s.pc + 3}
   return s
 
-ldax :: String -> State8080M State8080
-ldax "D" = do
+ldaxD :: State8080M State8080
+ldaxD = do
   s <- get
   let adr = concatBytesBE s.d s.e
   let a = getByteAtAdr s.program adr
   put s {a = a, pc = s.pc + 1}
   return s
 
-inx :: String -> State8080M State8080
-inx "H" = do
+inxH :: State8080M State8080
+inxH = do
   s <- get
   let hl = (concatBytesBE s.h s.l) + 1
   let (h, l) = word16ToWord8s hl
   put s {h = h, l = l, pc = s.pc + 1}
   return s
-inx "D" = do
+
+inxD :: State8080M State8080
+inxD = do
   s <- get
   let de = (concatBytesBE s.d s.e) + 1
   let (d, e) = word16ToWord8s de
@@ -461,47 +478,59 @@ ret = do
   put s {pc = adr + 1}
   return s
 
-movI :: String -> State8080M State8080
-movI "B" = do
+movIB :: State8080M State8080
+movIB = do
   s <- get
   let im = getNNextByte s.program s.pc 1
   put s {b = im, pc = s.pc + 2}
   return s
-movI "M" = do
+
+movIM :: State8080M State8080
+movIM = do
   s <- get
   let adr = concatBytesBE s.h s.l
   let im = getNNextByte s.program s.pc 1
   let mem = insertIntoByteString im s.program (fromIntegral adr)
   put s {program = mem, pc = s.pc + 2}
   return s
-movI "C" = do
+
+movIC :: State8080M State8080
+movIC = do
   s <- get
   let im = getNNextByte s.program s.pc 1
   put s {c = im, pc = s.pc + 2}
   return s
-movI "H" = do
+
+movIH :: State8080M State8080
+movIH = do
   s <- get
   let im = getNNextByte s.program s.pc 1
   put s {h = im, pc = s.pc + 2}
   return s
 
-mov :: String -> String -> State8080M State8080
-mov "M" "A" = do
+movMA :: State8080M State8080
+movMA = do
   s <- get
   let adr = concatBytesBE s.h s.l
   let mem = insertIntoByteString s.a s.program (fromIntegral adr)
 
   put s {program = mem, pc = s.pc + 1}
   return s
-mov "L" "A" = do
+
+movLA :: State8080M State8080
+movLA = do
   s <- get
   put s {l = s.a, pc = s.pc + 1}
   return s
-mov "A" "H" = do
+
+movAH :: State8080M State8080
+movAH = do
   s <- get
   put s {a = s.h, pc = s.pc + 1}
   return s
-mov "E" "H" = do
+
+movEH :: State8080M State8080
+movEH = do
   s <- get
   put s {e = s.h, pc = s.pc + 1}
   return s
