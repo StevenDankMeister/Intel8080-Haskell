@@ -3,6 +3,7 @@
 module MoveInstructions where
 
 import Control.Monad.State
+import Data.Binary (Word16)
 import States
 import Utils
 
@@ -61,4 +62,13 @@ movEH :: State8080M State8080
 movEH = do
   s <- get
   put s{e = s.h, pc = s.pc + 1}
+  return s
+
+lhld :: Word16 -> State8080M State8080
+lhld adr = do
+  s <- get
+  let l = getByteAtAdr s.program adr
+  let h = getByteAtAdr s.program (adr + 1)
+
+  put s{l = l, h = h, pc = s.pc + 3}
   return s

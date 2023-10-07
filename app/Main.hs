@@ -4,17 +4,19 @@
 import Control.Monad.State (MonadIO (liftIO), MonadState (state), State, StateT (runStateT), evalStateT, get, modify, put, return, runState)
 import Data.Binary (Binary (), Word16, Word32, Word8)
 import Data.Bits (Bits (complementBit, popCount, shiftL, testBit, (.&.), (.|.)), shiftR, xor)
-import Data.ByteString as BS (ByteString, append, empty, hGet, head, index, init, length, pack, singleton, snoc, split, splitAt, tail, take, uncons)
+import Data.ByteString as BS (ByteString, append, drop, empty, hGet, head, index, init, length, pack, singleton, snoc, split, splitAt, tail, take, takeWhile, uncons)
 import Data.Char (intToDigit)
 import Data.Map (Map, fromList, size, (!?))
 import GHC.IO.Handle (hFileSize)
 import GHC.IO.IOMode (IOMode (ReadMode))
 import Numeric (showHex)
 import System.IO (openFile)
-import Text.Printf (printf)
+import Text.Printf (IsChar (fromChar), printf)
 
 import ArithInstructions
-import Disassembler (Byte, dissasembleOp)
+import BitwiseInstructions
+import Control.Arrow qualified as BS
+import Disassembler (Byte, dissasembleOp, instructionPrintMap)
 import JumpInstructions
 import LoadInstructions
 import MoveInstructions
@@ -22,8 +24,19 @@ import StackInstructions
 import States
 import Utils
 
-instructionNotImplemented :: State8080 -> a
-instructionNotImplemented s = error ("\nInstruction not implemented: \n        " ++ show s)
+-- TODO: Fix this print
+instructionNotImplemented :: Word8 -> State8080 -> a
+instructionNotImplemented op s =
+  error
+    ( "\nInstruction not implemented: 0x"
+        ++ (show $ showHexList [op])
+        ++ ": "
+        ++ string
+        ++ "\n        "
+        ++ show s
+    )
+ where
+  Just (string, _) = instructionPrintMap Data.Map.!? op
 
 emulateProgram :: State8080M State8080
 emulateProgram = do
@@ -59,6 +72,9 @@ emulateNextOp = do
     | op == 0x23 -> inxH
     | op == 0x26 -> movIH
     | op == 0x29 -> dadH
+    | op == 0x2a -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        lhld adr
     | op == 0x31 -> lxiSP
     | op == 0x32 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -86,22 +102,48 @@ emulateNextOp = do
     | op == 0xc5 -> stackPushRegisterB
     | op == 0xc6 -> addI (getNNextByte s.program s.pc 1)
     | op == 0xc9 -> ret
+    | op == 0xca -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        jz adr
     | op == 0xcd -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         call adr
+    | op == 0xce -> aci
     | op == 0xd1 -> stackPopRegisterD
+    | op == 0xd2 -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        jnc adr
     | op == 0xd3 -> out
     | op == 0xd5 -> stackPushRegisterD
+    | op == 0xd6 -> sui
+    | op == 0xda -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        jc adr
+    | op == 0xde -> sbi
     | op == 0xe1 -> stackPopRegisterH
+    | op == 0xe2 -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        jpo adr
     | op == 0xe5 -> stackPushRegisterH
     | op == 0xe6 -> ani (getNNextByte s.program s.pc 1)
+    | op == 0xea -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        jpe adr
     | op == 0xeb -> xchg
+    | op == 0xee -> xri
     | op == 0xf1 -> stackPopPSW
+    | op == 0xf2 -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        jp adr
     | op == 0xf5 -> stackPushPSW
+    | op == 0xf6 -> ori
+    | op == 0xfa -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        jm adr
     -- 0xfb
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
     -- \| op == 0xff -> rst 7
-    | otherwise -> do instructionNotImplemented s
+    | otherwise -> do instructionNotImplemented op s
 
 rrc :: State8080M State8080
 rrc = do
@@ -112,18 +154,6 @@ rrc = do
   let a = (s.a `shiftR` 1) .|. mask
 
   put s{a = a, pc = s.pc + 1, ccodes = s.ccodes{cy = cy}}
-  return s
-
-ani :: Word8 -> State8080M State8080
-ani byte = do
-  s <- get
-  let a = s.a .&. byte
-  let sign = getSign a
-  let carry = 0
-  let zero = if a == 0 then 1 else 0
-  let p = getParity a
-
-  put s{a = a, pc = s.pc + 2, ccodes = s.ccodes{si = sign, cy = carry, z = zero, p = p}}
   return s
 
 -- TODO: IMPLEMENT THIS
@@ -200,6 +230,65 @@ main = do
           , inte = 0
           }
   runStateT emulateProgram startState
+
+testCPU :: IO (State8080, State8080)
+testCPU = do
+  f <- openFile "../TST8080.COM" ReadMode
+  size <- hFileSize f
+  buffer <- hGet f $ fromIntegral size
+  -- Program should start at 0x100
+  let memory = pack (replicate 0x100 0) `BS.append` buffer `BS.append` pack (replicate (0x10000 - fromIntegral size) 0)
+  let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
+
+  -- 0xc9 is RET
+  let modified_memory = insertIntoByteString 0xc9 memory 0x0005
+
+  let startState =
+        State8080
+          { a = 0
+          , b = 0
+          , c = 0
+          , d = 0
+          , e = 0
+          , h = 0
+          , l = 0
+          , sp = 0
+          , pc = 0x100 -- Start at 1x100
+          , program = modified_memory
+          , stack = []
+          , ccodes = ccodes
+          , inte = 0
+          }
+  runStateT runTest startState
+
+runTest :: State8080M State8080
+runTest = do
+  s <- get
+  let pc = fromIntegral s.pc
+  -- Print instruction to be executed
+  _ <- liftIO (dissasembleOp s.program pc)
+  -- Special test behaviour
+  if pc == 0x0005
+    then
+      if s.c == 9
+        then do
+          let adr = fromIntegral $ concatBytesBE s.d s.e
+          let stop_char = fromIntegral $ fromEnum '$'
+          let output = BS.takeWhile (/= stop_char) (BS.drop adr s.program)
+          liftIO $ print output
+          emulateNextOp
+          runTest
+        else do
+          liftIO (print s.e)
+          runTest
+    else
+      if pc < BS.length s.program
+        then do
+          emulateNextOp
+          s <- get
+          liftIO (print s)
+          runTest
+        else return s
 
 -- Just for some manual testing
 test :: IO (State8080, State8080)

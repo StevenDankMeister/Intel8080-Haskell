@@ -88,18 +88,89 @@ addI byte = do
   let a = fromIntegral s.a :: Word16
   let byte_dw = fromIntegral byte :: Word16
   let res = a + byte_dw
+  let res' = fromIntegral res :: Word8
 
   let a_lower = a .|. 0xf
   let byte_lower = byte_dw .|. 0xf
 
   let aux_carry = if a_lower + byte_lower > 0xf then 1 else 0
-  let carry = if res > 0xffff then 1 else 0
-  let sign = getSign $ fromIntegral res
-  let zero = getZero $ fromIntegral res
-  let parity = getParity res
+  let carry = if res > 0xff then 1 else 0
+  let sign = getSign $ fromIntegral res'
+  let zero = getZero $ fromIntegral res'
+  let parity = getParity res'
 
   let ccodess = CCState{ac = aux_carry, cy = carry, si = sign, z = zero, p = parity}
-  let res' = fromIntegral res :: Word8
 
   put s{a = res', pc = s.pc + 2, ccodes = ccodess}
+  return s
+
+aci :: State8080M State8080
+aci = do
+  s <- get
+  let immediate = fromIntegral $ getNNextByte s.program s.pc 1
+  let a = fromIntegral s.a
+  let carry_before = fromIntegral s.ccodes.cy
+
+  let res = a + immediate + carry_before :: Word16
+  let res' = fromIntegral res :: Word8
+
+  let a_lower = a .|. 0xf
+  let byte_lower = immediate .|. 0xf
+
+  let aux_carry = if a_lower + byte_lower + carry_before > 0xf then 1 else 0
+  let carry = if res > 0xff then 1 else 0
+  let sign = getSign $ fromIntegral res'
+  let zero = getZero $ fromIntegral res'
+  let parity = getParity res'
+
+  let ccodes = CCState{ac = aux_carry, cy = carry, si = sign, z = zero, p = parity}
+
+  put s{a = res', pc = s.pc + 2, ccodes = ccodes}
+  return s
+
+sui :: State8080M State8080
+sui = do
+  s <- get
+  let immediate = fromIntegral $ getNNextByte s.program s.pc 1
+  let a = fromIntegral s.a
+
+  let res = a - immediate :: Word16
+  let res' = fromIntegral res :: Word8
+
+  let a_lower = a .|. 0xf
+  let byte_lower = immediate .|. 0xf
+
+  let aux_carry = if a_lower < byte_lower then 1 else 0
+  let carry = if a < immediate then 1 else 0
+  let sign = getSign $ fromIntegral res'
+  let zero = getZero $ fromIntegral res'
+  let parity = getParity res'
+
+  let ccodes = CCState{ac = aux_carry, cy = carry, si = sign, z = zero, p = parity}
+
+  put s{a = res', pc = s.pc + 2, ccodes = ccodes}
+  return s
+
+sbi :: State8080M State8080
+sbi = do
+  s <- get
+  let immediate = fromIntegral $ getNNextByte s.program s.pc 1
+  let a = fromIntegral s.a
+  let carry_before = fromIntegral s.ccodes.cy
+
+  let res = a - immediate - carry_before :: Word16
+  let res' = fromIntegral res :: Word8
+
+  let a_lower = a .|. 0xf
+  let byte_lower = immediate .|. 0xf
+
+  let aux_carry = if a_lower < byte_lower + carry_before then 1 else 0
+  let carry = if a < immediate + carry_before then 1 else 0
+  let sign = getSign $ fromIntegral res'
+  let zero = getZero $ fromIntegral res'
+  let parity = getParity res'
+
+  let ccodes = CCState{ac = aux_carry, cy = carry, si = sign, z = zero, p = parity}
+
+  put s{a = res', pc = s.pc + 2, ccodes = ccodes}
   return s
