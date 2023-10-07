@@ -29,7 +29,7 @@ instructionNotImplemented :: Word8 -> State8080 -> a
 instructionNotImplemented op s =
   error
     ( "\nInstruction not implemented: 0x"
-        ++ (show $ showHexList [op])
+        ++ show (showHexList [op])
         ++ ": "
         ++ string
         ++ "\n        "
@@ -99,6 +99,7 @@ emulateNextOp = do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jnz adr
     | op == 0xc3 -> jmp
+    | op == 0xc4 -> cnz
     | op == 0xc5 -> stackPushRegisterB
     | op == 0xc6 -> addI (getNNextByte s.program s.pc 1)
     | op == 0xc9 -> ret
@@ -114,16 +115,19 @@ emulateNextOp = do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jnc adr
     | op == 0xd3 -> out
+    | op == 0xd4 -> cnc
     | op == 0xd5 -> stackPushRegisterD
     | op == 0xd6 -> sui
     | op == 0xda -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jc adr
+    | op == 0xdc -> cc
     | op == 0xde -> sbi
     | op == 0xe1 -> stackPopRegisterH
     | op == 0xe2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jpo adr
+    | op == 0xe4 -> cpo
     | op == 0xe5 -> stackPushRegisterH
     | op == 0xe6 -> ani (getNNextByte s.program s.pc 1)
     | op == 0xea -> do
@@ -141,6 +145,7 @@ emulateNextOp = do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jm adr
     -- 0xfb
+    | op == 0xfc -> cm
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
     -- \| op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented op s

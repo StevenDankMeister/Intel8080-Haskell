@@ -79,6 +79,76 @@ jm adr = do
     else put s{pc = s.pc + 3}
   return s
 
+cc :: State8080M State8080
+cc = do
+  s <- get
+  ifCall (s.ccodes.cy == 1)
+
+-- let adr = nextTwoBytesToWord16BE s.program s.pc
+--
+-- if s.ccodes.cy == 1
+--   then do
+--     call adr
+--     get
+--   else do
+--     put s{pc = s.pc + 3}
+--     return s
+
+cpo :: State8080M State8080
+cpo = do
+  s <- get
+  ifCall (s.ccodes.p == 0)
+
+-- s <- get
+-- let adr = nextTwoBytesToWord16BE s.program s.pc
+--
+-- if s.ccodes.p == 0
+--   then do
+--     call adr
+--     get
+--   else do
+--     put s{pc = s.pc + 3}
+--     return s
+
+cm :: State8080M State8080
+cm = do
+  s <- get
+  ifCall (s.ccodes.si == 1)
+
+-- cm = do
+--   s <- get
+--   let adr = nextTwoBytesToWord16BE s.program s.pc
+--
+--   if s.ccodes.s == 1
+--     then do
+--       call adr
+--       get
+--     else do
+--       put s{pc = s.pc + 3}
+--       return s
+
+cnz :: State8080M State8080
+cnz = do
+  s <- get
+  ifCall (s.ccodes.z == 0)
+
+cnc :: State8080M State8080
+cnc = do
+  s <- get
+  ifCall (s.ccodes.cy == 0)
+
+ifCall :: Bool -> State8080M State8080
+ifCall bool = do
+  s <- get
+  if bool
+    then do
+      let adr = nextTwoBytesToWord16BE s.program s.pc
+      call adr
+      get
+    else do
+      put s{pc = s.pc + 3}
+      return s
+
 ret :: State8080M State8080
 ret = do
   lo <- stackPop
