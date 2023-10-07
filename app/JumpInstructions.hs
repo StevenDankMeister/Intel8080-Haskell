@@ -18,7 +18,7 @@ jmp = do
 jnz :: Word16 -> State8080M State8080
 jnz adr = do
   s <- get
-  ( if s.ccodes.z == 0x1
+  ( if s.ccodes.z == 0x01
       then put s{pc = adr}
       else put s{pc = s.pc + 3}
     )

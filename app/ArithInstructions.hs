@@ -4,7 +4,7 @@ module ArithInstructions where
 
 import Control.Monad.State
 import Data.Binary (Word16, Word32, Word8)
-import Data.Bits (Bits (complementBit, popCount), (.&.))
+import Data.Bits (Bits (complementBit, popCount, (.|.)), (.&.))
 import States
 import Utils
 
@@ -13,12 +13,13 @@ dcrB = do
   s <- get
   let b = s.b - 0x01
 
-  let z = (if b == 0 then 0x01 else 0x0) :: Word8
-  let si = b .&. 0x01
+  let z = getZero b :: Word8
+  let si = getSign b
 
-  let p = fromIntegral (complementBit (popCount b `mod` 2) 0)
+  let p = getParity b
 
   let b_lower = s.b .&. 0x0f
+  -- TODO: Does this actually work???
   let ac = (if b_lower < 0x01 then 1 else 0) :: Word8 -- Maybe just hardcode b_lower == 0?
   let cc = s.ccodes{z = z, si = si, p = p, ac = ac}
   put s{b = s.b - 1, ccodes = cc, pc = s.pc + 1}
@@ -48,9 +49,7 @@ dadB = do
   let res = hl + be
   let carry = if res > 0xffff then 1 else 0
 
-  let res' = fromIntegral res :: Word16
-
-  let (h, l) = word16ToWord8s res'
+  let (h, l) = word16ToWord8s $ fromIntegral res
   put s{h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes{cy = carry}}
   return s
 
@@ -61,9 +60,7 @@ dadH = do
   let res = hl + hl
   let carry = if res > 0xffff then 1 else 0
 
-  let res' = fromIntegral res :: Word16
-
-  let (h, l) = word16ToWord8s res'
+  let (h, l) = word16ToWord8s $ fromIntegral res
 
   put s{h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes{cy = carry}}
   return s
@@ -76,8 +73,34 @@ dadD = do
   let res = hl + de
   let carry = if res > 0xffff then 1 else 0
 
-  let res' = fromIntegral res :: Word16
+  let (h, l) = word16ToWord8s $ fromIntegral res
+  put
+    s
+      { h = h
+      , l = l
+      , pc = s.pc + 1
+      , ccodes = s.ccodes{cy = carry}
+      }
+  return s
 
-  let (h, l) = word16ToWord8s res'
-  put s{h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes{cy = carry}}
+addI :: Word8 -> State8080M State8080
+addI byte = do
+  s <- get
+  let a = fromIntegral s.a :: Word16
+  let byte_dw = fromIntegral byte :: Word16
+  let res = a + byte_dw
+
+  let a_lower = a .|. 0xf
+  let byte_lower = byte_dw .|. 0xf
+
+  let aux_carry = if a_lower + byte_lower > 0xf then 1 else 0
+  let carry = if res > 0xffff then 1 else 0
+  let sign = getSign $ fromIntegral res
+  let zero = getZero $ fromIntegral res
+  let parity = getParity res
+
+  let ccodess = CCState{ac = aux_carry, cy = carry, si = sign, z = zero, p = parity}
+  let res' = fromIntegral res :: Word8
+
+  put s{a = res', pc = s.pc + 2, ccodes = ccodess}
   return s

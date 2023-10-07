@@ -76,6 +76,7 @@ emulateNextOp = do
     | op == 0xc1 -> stackPopRegisterB
     | op == 0xc3 -> jmp
     | op == 0xc5 -> stackPushRegisterB
+    | op == 0xc6 -> addI (getNNextByte s.program s.pc 1)
     | op == 0xc9 -> ret
     | op == 0xcd -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc

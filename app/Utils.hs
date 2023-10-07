@@ -3,7 +3,7 @@
 module Utils where
 
 import Data.Binary (Word16, Word8)
-import Data.Bits (Bits (shiftL, shiftR, (.|.)))
+import Data.Bits (Bits (complementBit, popCount, shiftL, shiftR, (.|.)), (.&.))
 import Data.ByteString as BS (
   ByteString,
   append,
@@ -12,7 +12,16 @@ import Data.ByteString as BS (
   snoc,
   splitAt,
  )
-import States (CCState (ac, cy, p, si, z))
+import States
+
+getParity :: (Bits a) => a -> Word8
+getParity bits = fromIntegral (complementBit (popCount bits `mod` 2) 0)
+
+getSign :: Word8 -> Word8
+getSign byte = (byte .&. 0x80) `shiftR` 7
+
+getZero :: Word8 -> Word8
+getZero bits = if bits == 0 then 1 else 0
 
 nextTwoBytesToWord16BE :: ByteString -> Word16 -> Word16
 nextTwoBytesToWord16BE mem pc = res
@@ -43,6 +52,7 @@ flagsToByte ccstate = res
 
 word16ToWord8s :: Word16 -> (Word8, Word8)
 word16ToWord8s w = (fromIntegral (w `shiftR` 8), fromIntegral w)
+
 concatBytesBE :: Word8 -> Word8 -> Word16
 concatBytesBE hi lo = res
  where
