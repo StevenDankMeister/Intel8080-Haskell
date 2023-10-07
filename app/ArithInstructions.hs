@@ -13,16 +13,15 @@ dcrB = do
   s <- get
   let b = s.b - 0x01
 
-  let z = getZero b :: Word8
+  let z = getZero b
   let si = getSign b
-
   let p = getParity b
-
-  let b_lower = s.b .&. 0x0f
+  let b_lower = fromIntegral $ s.b .&. 0x0f
   -- TODO: Does this actually work???
-  let ac = (if b_lower < 0x01 then 1 else 0) :: Word8 -- Maybe just hardcode b_lower == 0?
+  let ac = (if b_lower == 0 then 1 else 0)
   let cc = s.ccodes{z = z, si = si, p = p, ac = ac}
-  put s{b = s.b - 1, ccodes = cc, pc = s.pc + 1}
+  put s{b = b, ccodes = cc, pc = s.pc + 1}
+
   return s
 
 inxH :: State8080M State8080

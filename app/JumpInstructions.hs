@@ -32,7 +32,7 @@ ret = do
 
   let adr = concatBytesBE hi lo
   s <- get
-  put s{pc = adr + 1}
+  put s{pc = adr + 3}
   return s
 
 call :: Word16 -> State8080M State8080

@@ -48,7 +48,17 @@ flagsToByte ccstate = res
   zero = ccstate.z `shiftL` 6
   aux = ccstate.ac `shiftL` 4
   parity = ccstate.p `shiftL` 2
-  res = sign .|. zero .|. aux .|. parity .|. ccstate.cy .|. 0x2
+  res = sign .|. zero .|. aux .|. parity .|. ccstate.cy .|. 0x2 -- Second bit always 1
+
+byteToFlags :: Word8 -> CCState
+byteToFlags byte = res
+ where
+  sign = fromIntegral $ popCount $ byte .&. 0x80
+  zero = fromIntegral $ popCount $ byte .&. 0x40
+  aux = fromIntegral $ popCount $ byte .&. 0x10
+  parity = fromIntegral $ popCount $ byte .&. 0x4
+  carry = byte .&. 0x1
+  res = CCState{si = sign, z = zero, ac = aux, p = parity, cy = carry}
 
 word16ToWord8s :: Word16 -> (Word8, Word8)
 word16ToWord8s w = (fromIntegral (w `shiftR` 8), fromIntegral w)

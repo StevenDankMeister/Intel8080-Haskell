@@ -48,11 +48,12 @@ emulateNextOp = do
     | op == 0x05 -> dcrB
     | op == 0x06 -> movIB
     | op == 0x09 -> dadB
+    -- 0x0d
+    | op == 0x0e -> movIC
+    | op == 0x0f -> rrc
     | op == 0x11 -> lxiD
     | op == 0x13 -> inxD
     | op == 0x19 -> dadD
-    | op == 0x0e -> movIC
-    | op == 0x0f -> rrc
     | op == 0x1a -> ldaxD
     | op == 0x21 -> lxiH
     | op == 0x23 -> inxH
@@ -66,14 +67,21 @@ emulateNextOp = do
     | op == 0x3a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lda adr
-    | op == 0x5c -> movEH
+    -- 0x3e
+    -- 0x56
+    -- 0x5e
+    -- 0x66
+    -- \| op == 0x5c -> movEH
     | op == 0x6f -> movLA
     | op == 0x77 -> movMA
+    -- 0x7a
+    -- 0x7b
     | op == 0x7c -> movAH
+    -- 0x7e
+    | op == 0xc1 -> stackPopRegisterB
     | op == 0xc2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jnz adr
-    | op == 0xc1 -> stackPopRegisterB
     | op == 0xc3 -> jmp
     | op == 0xc5 -> stackPushRegisterB
     | op == 0xc6 -> addI (getNNextByte s.program s.pc 1)
@@ -81,15 +89,18 @@ emulateNextOp = do
     | op == 0xcd -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         call adr
+    | op == 0xd1 -> stackPopRegisterD
     | op == 0xd3 -> out
     | op == 0xd5 -> stackPushRegisterD
     | op == 0xe1 -> stackPopRegisterH
+    | op == 0xe5 -> stackPushRegisterH
     | op == 0xe6 -> ani (getNNextByte s.program s.pc 1)
     | op == 0xeb -> xchg
-    | op == 0xe5 -> stackPushRegisterH
+    | op == 0xf1 -> stackPopPSW
+    | op == 0xf5 -> stackPushPSW
+    -- 0xfb
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
-    | op == 0xf5 -> stackPushRegisterPSW
-    | op == 0xff -> rst 7
+    -- \| op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented s
 
 rrc :: State8080M State8080
@@ -107,10 +118,10 @@ ani :: Word8 -> State8080M State8080
 ani byte = do
   s <- get
   let a = s.a .&. byte
-  let sign = a .&. 0x1
+  let sign = getSign a
   let carry = 0
   let zero = if a == 0 then 1 else 0
-  let p = fromIntegral (complementBit (popCount a `mod` 2) 0)
+  let p = getParity a
 
   put s{a = a, pc = s.pc + 2, ccodes = s.ccodes{si = sign, cy = carry, z = zero, p = p}}
   return s
@@ -137,20 +148,19 @@ xchg = do
 cpi :: Word8 -> State8080M State8080
 cpi byte = do
   s <- get
-  let byte = fromIntegral byte
   let res = s.a - byte
 
-  let z = if res == 0 then 1 else 0 :: Word8
-  let si = res .&. 0x01
-  let p = fromIntegral (complementBit (popCount res `mod` 2) 0)
-  let cy = if s.a < byte then 1 else 0 :: Word8
+  let z = if res == 0 then 1 else 0
+  let si = getSign res
+  let p = getParity res
+  let cy = if s.a < byte then 1 else 0
 
   let b_lower = byte .&. 0x0f
   let a_lower = s.a .&. 0x0f
-  let ac = (if a_lower < b_lower then 1 else 0) :: Word8
+  let ac = (if a_lower < b_lower then 1 else 0)
 
   let cc = s.ccodes{z = z, si = si, p = p, ac = ac, cy = cy}
-  put s{pc = s.pc + 2}
+  put s{pc = s.pc + 2, ccodes = cc}
   return s
 
 sta :: Word16 -> State8080M State8080
