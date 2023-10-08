@@ -2,6 +2,7 @@
 
 module Utils where
 
+import Control.Monad.State
 import Data.Binary (Word16, Word8)
 import Data.Bits (Bits (complementBit, popCount, shiftL, shiftR, (.|.)), (.&.))
 import Data.ByteString as BS (
@@ -13,6 +14,18 @@ import Data.ByteString as BS (
   splitAt,
  )
 import States
+
+addPC :: Word16 -> State8080M State8080
+addPC x = do
+  s <- get
+  put s{pc = s.pc + x}
+  return s
+
+getMem :: State8080 -> Word8
+getMem s = byte
+ where
+  adr = concatBytesBE s.h s.l
+  byte = getByteAtAdr s.program adr
 
 getParity :: (Bits a) => a -> Word8
 getParity bits = fromIntegral (complementBit (popCount bits `mod` 2) 0)

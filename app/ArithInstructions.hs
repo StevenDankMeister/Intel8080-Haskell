@@ -174,3 +174,44 @@ sbi = do
 
   put s{a = res', pc = s.pc + 2, ccodes = ccodes}
   return s
+
+inrA :: State8080M State8080
+inrA = do
+  s <- get
+  let (res8, res16) = arithOp (+) s.a 1
+
+  let a_lower = s.a .|. 0xf
+
+  let ccodes = getCCodes (a_lower + 1 > 0xf) (res16 > 0xff) res8
+
+  put s{a = res8, pc = s.pc + 1, ccodes = ccodes}
+  return s
+
+inrB :: State8080M State8080
+inrB = do
+  s <- get
+  let (res8, res16) = arithOp (+) s.b 1
+  let b_lower = s.b .|. 0xf
+
+  let ccodes = getCCodes (b_lower + 1 > 0xf) (res16 > 0xff) res8
+
+  put s{b = res8, pc = s.pc + 1, ccodes = ccodes}
+  return s
+
+getCCodes :: Bool -> Bool -> Word8 -> CCState
+getCCodes auxcond carrycond byte = res
+ where
+  aux_carry = if auxcond then 1 else 0
+  carry = if carrycond then 1 else 0
+  sign = getSign byte
+  zero = getZero byte
+  parity = getParity byte
+  res = CCState{ac = aux_carry, cy = carry, si = sign, z = zero, p = parity}
+
+arithOp :: (Integral a, Integral b, Num c, Num d) => (c -> d -> Word16) -> a -> b -> (Word8, Word16)
+arithOp op operand1 operand2 = (res8, res16)
+ where
+  operand1' = fromIntegral operand1
+  operand2' = fromIntegral operand2
+  res16 = op operand1' operand2' :: Word16
+  res8 = fromIntegral res16 :: Word8

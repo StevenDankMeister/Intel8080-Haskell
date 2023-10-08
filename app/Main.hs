@@ -56,8 +56,9 @@ emulateNextOp = do
   s <- get
   let op = program s `getByteAtAdr` s.pc
   if
-    | op == 0x00 -> put s{pc = s.pc + 1} >> return s
+    | op == 0x00 -> nop
     | op == 0x01 -> lxiB
+    | op == 0x04 -> inrB
     | op == 0x05 -> dcrB
     | op == 0x06 -> movIB
     | op == 0x09 -> dadB
@@ -83,11 +84,41 @@ emulateNextOp = do
     | op == 0x3a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lda adr
-    -- 0x3e
-    -- 0x56
-    -- 0x5e
+    | op == 0x3c -> inrA
+    | op == 0x3e -> movIA
+    | op == 0x40 -> nop
+    | op == 0x41 -> movBC
+    | op == 0x42 -> movBD
+    | op == 0x43 -> movBE
+    | op == 0x44 -> movBH
+    | op == 0x45 -> movBL
+    | op == 0x46 -> movBM
+    | op == 0x47 -> movBA
+    | op == 0x48 -> movCB
+    | op == 0x49 -> nop
+    | op == 0x4a -> movCD
+    | op == 0x4b -> movCE
+    | op == 0x4c -> movCH
+    | op == 0x4d -> movCL
+    | op == 0x4e -> movCM
+    | op == 0x4f -> movCA
+    | op == 0x50 -> movDB
+    | op == 0x51 -> movDC
+    | op == 0x52 -> nop
+    | op == 0x53 -> movDE
+    | op == 0x54 -> movDH
+    | op == 0x55 -> movDL
+    | op == 0x56 -> movDM
+    | op == 0x57 -> movDA
+    | op == 0x58 -> movEB
+    | op == 0x59 -> movEC
+    | op == 0x5a -> movED
+    | op == 0x5b -> nop
+    | op == 0x5c -> movEH
+    | op == 0x5d -> movEL
+    | op == 0x5e -> movEM
+    | op == 0x5f -> movEA
     -- 0x66
-    -- \| op == 0x5c -> movEH
     | op == 0x6f -> movLA
     | op == 0x77 -> movMA
     -- 0x7a
@@ -162,6 +193,9 @@ emulateNextOp = do
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
     -- \| op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented op s
+
+nop :: State8080M State8080
+nop = addPC 1
 
 rrc :: State8080M State8080
 rrc = do
@@ -291,12 +325,13 @@ runTest = do
   s <- get
   let pc = fromIntegral s.pc
   -- Print instruction to be executed
-  _ <- liftIO (dissasembleOp s.program pc)
+  -- _ <- liftIO (dissasembleOp s.program pc)
   -- Special test behaviour
   if pc == 0x0005
     then
       if s.c == 9
         then do
+          -- Start scanning from DE until '$' and print
           let adr = fromIntegral $ concatBytesBE s.d s.e
           let stop_char = fromIntegral $ fromEnum '$'
           let output = BS.takeWhile (/= stop_char) (BS.drop adr s.program)
@@ -311,7 +346,7 @@ runTest = do
         then do
           emulateNextOp
           s <- get
-          liftIO (print s)
+          -- liftIO (print s)
           runTest
         else return s
 

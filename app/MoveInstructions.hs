@@ -14,6 +14,46 @@ movIB = do
   put s{b = im, pc = s.pc + 2}
   return s
 
+movBA :: State8080M State8080
+movBA = do
+  s <- get
+  put s{b = s.a, pc = s.pc + 1}
+  return s
+
+movBC :: State8080M State8080
+movBC = do
+  s <- get
+  put s{b = s.c, pc = s.pc + 1}
+  return s
+
+movBD :: State8080M State8080
+movBD = do
+  s <- get
+  put s{b = s.d, pc = s.pc + 1}
+  return s
+
+movBE :: State8080M State8080
+movBE = do
+  s <- get
+  put s{b = s.e, pc = s.pc + 1}
+  return s
+movBH :: State8080M State8080
+movBH = do
+  s <- get
+  put s{b = s.h, pc = s.pc + 1}
+  return s
+movBL :: State8080M State8080
+movBL = do
+  s <- get
+  put s{b = s.l, pc = s.pc + 1}
+  return s
+
+movBM :: State8080M State8080
+movBM = do
+  s <- get
+  put s{b = getMem s, pc = s.pc + 1}
+  return s
+
 movIM :: State8080M State8080
 movIM = do
   s <- get
@@ -30,11 +70,144 @@ movIC = do
   put s{c = im, pc = s.pc + 2}
   return s
 
+movCB :: State8080M State8080
+movCB = do
+  s <- get
+  put s{c = s.b, pc = s.pc + 1}
+  return s
+
+movCD :: State8080M State8080
+movCD = do
+  s <- get
+  put s{c = s.d, pc = s.pc + 1}
+  return s
+
+movCE :: State8080M State8080
+movCE = do
+  s <- get
+  put s{c = s.e, pc = s.pc + 1}
+  return s
+
+movCH :: State8080M State8080
+movCH = do
+  s <- get
+  put s{c = s.h, pc = s.pc + 1}
+  return s
+
+movCL :: State8080M State8080
+movCL = do
+  s <- get
+  put s{c = s.l, pc = s.pc + 1}
+  return s
+
+movCM :: State8080M State8080
+movCM = do
+  s <- get
+  put s{c = getMem s, pc = s.pc + 1}
+  return s
+
+movCA :: State8080M State8080
+movCA = do
+  s <- get
+  put s{c = s.a, pc = s.pc + 1}
+  return s
+
+movDB :: State8080M State8080
+movDB = do
+  s <- addPC 1
+  put s{d = s.b}
+  return s
+
+movDC :: State8080M State8080
+movDC = do
+  s <- addPC 1
+  put s{d = s.c}
+  return s
+
+movDE :: State8080M State8080
+movDE = do
+  s <- addPC 1
+  put s{d = s.e}
+  return s
+
+movDH :: State8080M State8080
+movDH = do
+  s <- addPC 1
+  put s{d = s.h}
+  return s
+
+movDL :: State8080M State8080
+movDL = do
+  s <- addPC 1
+  put s{d = s.l}
+  return s
+
+movDM :: State8080M State8080
+movDM = do
+  s <- addPC 1
+  put s{d = getMem s}
+  return s
+
+movDA :: State8080M State8080
+movDA = do
+  s <- addPC 1
+  put s{d = s.a}
+  return s
+
+movEB :: State8080M State8080
+movEB = do
+  s <- addPC 1
+  put s{e = s.b}
+  return s
+
+movEC :: State8080M State8080
+movEC = do
+  s <- addPC 1
+  put s{e = s.c}
+  return s
+
+movED :: State8080M State8080
+movED = do
+  s <- addPC 1
+  put s{e = s.d}
+  return s
+
+movEH :: State8080M State8080
+movEH = do
+  s <- addPC 1
+  put s{e = s.h}
+  return s
+
+movEL :: State8080M State8080
+movEL = do
+  s <- addPC 1
+  put s{e = s.l}
+  return s
+
+movEM :: State8080M State8080
+movEM = do
+  s <- addPC 1
+  put s{e = getMem s}
+  return s
+
+movEA :: State8080M State8080
+movEA = do
+  s <- addPC 1
+  put s{e = s.a}
+  return s
+
 movIH :: State8080M State8080
 movIH = do
   s <- get
   let im = getNNextByte s.program s.pc 1
   put s{h = im, pc = s.pc + 2}
+  return s
+
+movIA :: State8080M State8080
+movIA = do
+  s <- get
+  let im = getNNextByte s.program s.pc 1
+  put s{a = im, pc = s.pc + 2}
   return s
 
 movMA :: State8080M State8080
@@ -56,12 +229,6 @@ movAH :: State8080M State8080
 movAH = do
   s <- get
   put s{a = s.h, pc = s.pc + 1}
-  return s
-
-movEH :: State8080M State8080
-movEH = do
-  s <- get
-  put s{e = s.h, pc = s.pc + 1}
   return s
 
 movAM :: State8080M State8080
