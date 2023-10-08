@@ -64,6 +64,14 @@ movEH = do
   put s{e = s.h, pc = s.pc + 1}
   return s
 
+movAM :: State8080M State8080
+movAM = do
+  s <- get
+  let adr = concatBytesBE s.h s.l
+  let byte = getByteAtAdr s.program adr
+  put s{a = byte, pc = s.pc + 1}
+  return s
+
 lhld :: Word16 -> State8080M State8080
 lhld adr = do
   s <- get

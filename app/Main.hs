@@ -93,7 +93,9 @@ emulateNextOp = do
     -- 0x7a
     -- 0x7b
     | op == 0x7c -> movAH
-    -- 0x7e
+    | op == 0x7e -> movAM
+    | op == 0xb6 -> oram
+    | op == 0xc0 -> rnz
     | op == 0xc1 -> stackPopRegisterB
     | op == 0xc2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -102,14 +104,17 @@ emulateNextOp = do
     | op == 0xc4 -> cnz
     | op == 0xc5 -> stackPushRegisterB
     | op == 0xc6 -> addI (getNNextByte s.program s.pc 1)
+    | op == 0xc8 -> rz
     | op == 0xc9 -> ret
     | op == 0xca -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jz adr
+    | op == 0xcc -> cz
     | op == 0xcd -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         call adr
     | op == 0xce -> aci
+    | op == 0xd0 -> rnc
     | op == 0xd1 -> stackPopRegisterD
     | op == 0xd2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -118,11 +123,13 @@ emulateNextOp = do
     | op == 0xd4 -> cnc
     | op == 0xd5 -> stackPushRegisterD
     | op == 0xd6 -> sui
+    | op == 0xd8 -> rc
     | op == 0xda -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jc adr
     | op == 0xdc -> cc
     | op == 0xde -> sbi
+    | op == 0xe0 -> rpo
     | op == 0xe1 -> stackPopRegisterH
     | op == 0xe2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -130,20 +137,26 @@ emulateNextOp = do
     | op == 0xe4 -> cpo
     | op == 0xe5 -> stackPushRegisterH
     | op == 0xe6 -> ani (getNNextByte s.program s.pc 1)
+    | op == 0xe8 -> rpe
     | op == 0xea -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jpe adr
     | op == 0xeb -> xchg
+    | op == 0xec -> cpe
     | op == 0xee -> xri
+    | op == 0xf0 -> rp
     | op == 0xf1 -> stackPopPSW
     | op == 0xf2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jp adr
+    | op == 0xf4 -> cp
     | op == 0xf5 -> stackPushPSW
     | op == 0xf6 -> ori
+    | op == 0xf8 -> rm
     | op == 0xfa -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jm adr
+    | op == 0xf9 -> sphl
     -- 0xfb
     | op == 0xfc -> cm
     | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
@@ -166,6 +179,13 @@ out :: State8080M State8080
 out = do
   s <- get
   put s{pc = s.pc + 2}
+  return s
+
+sphl :: State8080M State8080
+sphl = do
+  s <- get
+  let sp = concatBytesBE s.h s.l
+  put s{sp = sp, pc = s.pc + 1}
   return s
 
 xchg :: State8080M State8080

@@ -37,6 +37,18 @@ xri = do
   put s{a = res, pc = s.pc + 2, ccodes = s.ccodes{si = cc.si, cy = cc.cy, z = cc.z, p = cc.p}}
   return s
 
+oram :: State8080M State8080
+oram = do
+  s <- get
+
+  let adr = concatBytesBE s.h s.l
+  let byte = getByteAtAdr s.program adr
+
+  let (res, cc) = bitwiseOp (.|.) s.a byte
+  put s{a = res, pc = s.pc + 2, ccodes = s.ccodes{si = cc.si, cy = cc.cy, z = cc.z, p = cc.p}}
+  return s
+
+-- TODO: maybe change this to a function that uses state
 bitwiseOp :: (Word8 -> Word8 -> Word8) -> Word8 -> Word8 -> (Word8, CCState)
 bitwiseOp op operand1 operand2 = (res, ccstate)
  where
