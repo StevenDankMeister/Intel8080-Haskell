@@ -2,6 +2,7 @@
 
 module ArithInstructions where
 
+import Control.Monad.ST (runST)
 import Control.Monad.State
 import Data.Binary (Word16, Word32, Word8)
 import Data.Bits (Bits (complementBit, popCount, (.|.)), (.&.))
@@ -22,6 +23,16 @@ dcrB = do
   let cc = s.ccodes{z = z, si = si, p = p, ac = ac}
   put s{b = b, ccodes = cc, pc = s.pc + 1}
 
+  return s
+
+dcrC :: State8080M State8080
+dcrC = do
+  addPC 1
+  s <- get
+  let (res8, _) = arithOp (-) s.c 1
+  let cc = getCCodes (maskLower4Bytes s.c + 1 > 0xf) (toEnum $ fromIntegral s.ccodes.cy) res8
+
+  put s{c = res8, ccodes = cc}
   return s
 
 inxH :: State8080M State8080

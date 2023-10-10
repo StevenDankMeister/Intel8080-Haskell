@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
-import Control.Monad.State (MonadIO (liftIO), MonadState (state), State, StateT (runStateT), evalStateT, get, modify, put, return, runState)
+import Control.Monad.State (MonadIO (liftIO), MonadState (state), State, StateT (runStateT), evalStateT, execStateT, get, modify, put, return, runState)
 import Data.Binary (Binary (), Word16, Word32, Word8)
 import Data.Bits (Bits (complementBit, popCount, shiftL, testBit, (.&.), (.|.)), shiftR, xor)
 import Data.ByteString as BS (ByteString, append, drop, empty, hGet, head, index, init, length, pack, singleton, snoc, split, splitAt, tail, take, takeWhile, uncons)
@@ -42,11 +42,10 @@ emulateProgram :: State8080M State8080
 emulateProgram = do
   s <- get
   let pc = fromIntegral s.pc
-  _ <- liftIO (dissasembleOp s.program pc)
   if pc < BS.length s.program
     then do
-      emulateNextOp
-      s <- get
+      _ <- liftIO (dissasembleOp s.program pc)
+      s <- emulateNextOp
       liftIO (print s)
       emulateProgram
     else return s
@@ -62,7 +61,7 @@ emulateNextOp = do
     | op == 0x05 -> dcrB
     | op == 0x06 -> movIB
     | op == 0x09 -> dadB
-    -- 0x0d
+    | op == 0x0d -> dcrC
     | op == 0x0e -> movIC
     | op == 0x0f -> rrc
     | op == 0x11 -> lxiD
@@ -354,7 +353,7 @@ runTest = do
 test :: IO (State8080, State8080)
 test = do
   let memory = pack (replicate 0x5 0)
-  let testbytes = pack [0xe6, 0xff]
+  let testbytes = pack [0x0d]
   let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
 
   let test_memory = append testbytes memory

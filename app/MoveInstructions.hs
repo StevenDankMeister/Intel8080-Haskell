@@ -114,85 +114,99 @@ movCA = do
 
 movDB :: State8080M State8080
 movDB = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{d = s.b}
   return s
 
 movDC :: State8080M State8080
 movDC = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{d = s.c}
   return s
 
 movDE :: State8080M State8080
 movDE = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{d = s.e}
   return s
 
 movDH :: State8080M State8080
 movDH = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{d = s.h}
   return s
 
 movDL :: State8080M State8080
 movDL = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{d = s.l}
   return s
 
 movDM :: State8080M State8080
 movDM = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{d = getMem s}
   return s
 
 movDA :: State8080M State8080
 movDA = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{d = s.a}
   return s
 
 movEB :: State8080M State8080
 movEB = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{e = s.b}
   return s
 
 movEC :: State8080M State8080
 movEC = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{e = s.c}
   return s
 
 movED :: State8080M State8080
 movED = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{e = s.d}
   return s
 
 movEH :: State8080M State8080
 movEH = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{e = s.h}
   return s
 
 movEL :: State8080M State8080
 movEL = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{e = s.l}
   return s
 
 movEM :: State8080M State8080
 movEM = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{e = getMem s}
   return s
 
 movEA :: State8080M State8080
 movEA = do
-  s <- addPC 1
+  addPC 1
+  s <- get
   put s{e = s.a}
   return s
 

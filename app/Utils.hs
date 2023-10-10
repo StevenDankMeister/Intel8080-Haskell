@@ -15,6 +15,15 @@ import Data.ByteString as BS (
  )
 import States
 
+maskLower4Bytes :: (Bits a, Num a) => a -> a
+maskLower4Bytes x = res
+ where
+  res = x .|. 0xf
+
+-- TODO:
+-- Figure out why:
+--   s < addPC n
+-- s is not the new state
 addPC :: Word16 -> State8080M State8080
 addPC x = do
   s <- get
