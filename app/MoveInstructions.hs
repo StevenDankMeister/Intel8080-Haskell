@@ -253,6 +253,102 @@ movAM = do
   put s{a = byte, pc = s.pc + 1}
   return s
 
+movHB :: State8080M State8080
+movHB = do
+  addPC 1
+  s <- get
+  put s{h = s.b}
+  return s
+
+movHL :: State8080M State8080
+movHL = do
+  addPC 1
+  s <- get
+  put s{h = s.l}
+  return s
+
+movHM :: State8080M State8080
+movHM = do
+  s <- get
+  let mem = getNNextByte s.program s.pc 1
+
+  addPC 1
+  s <- get
+  put s{h = mem}
+  return s
+
+movHE :: State8080M State8080
+movHE = do
+  addPC 1
+  s <- get
+  put s{h = s.e}
+  return s
+
+movHD :: State8080M State8080
+movHD = do
+  addPC 1
+  s <- get
+  put s{h = s.d}
+  return s
+
+movHC :: State8080M State8080
+movHC = do
+  addPC 1
+  s <- get
+  put s{h = s.c}
+  return s
+
+movHA :: State8080M State8080
+movHA = do
+  addPC 1
+  s <- get
+  put s{h = s.a}
+  return s
+
+movLB :: State8080M State8080
+movLB = do
+  addPC 1
+  s <- get
+  put s{l = s.b}
+  return s
+
+movLC :: State8080M State8080
+movLC = do
+  addPC 1
+  s <- get
+  put s{l = s.c}
+  return s
+
+movLD :: State8080M State8080
+movLD = do
+  addPC 1
+  s <- get
+  put s{l = s.d}
+  return s
+
+movLE :: State8080M State8080
+movLE = do
+  addPC 1
+  s <- get
+  put s{l = s.e}
+  return s
+
+movLH :: State8080M State8080
+movLH = do
+  addPC 1
+  s <- get
+  put s{l = s.h}
+  return s
+
+movLM :: State8080M State8080
+movLM = do
+  s <- get
+  let byte = getNNextByte s.program s.pc 1
+
+  addPC 1
+  put s{l = byte}
+  return s
+
 lhld :: Word16 -> State8080M State8080
 lhld adr = do
   s <- get

@@ -117,7 +117,21 @@ emulateNextOp = do
     | op == 0x5d -> movEL
     | op == 0x5e -> movEM
     | op == 0x5f -> movEA
-    -- 0x66
+    | op == 0x60 -> movHB
+    | op == 0x61 -> movHC
+    | op == 0x62 -> movHD
+    | op == 0x63 -> movHE
+    | op == 0x64 -> nop
+    | op == 0x65 -> movHL
+    | op == 0x66 -> movHM
+    | op == 0x67 -> movHA
+    | op == 0x68 -> movLB
+    | op == 0x69 -> movLC
+    | op == 0x6a -> movLD
+    | op == 0x6b -> movLE
+    | op == 0x6c -> movLH
+    | op == 0x6d -> nop
+    | op == 0x6e -> movLM
     | op == 0x6f -> movLA
     | op == 0x77 -> movMA
     -- 0x7a
