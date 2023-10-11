@@ -349,6 +349,96 @@ movLM = do
   put s{l = byte}
   return s
 
+movMB :: State8080M State8080
+movMB = do
+  s <- get
+  toMem s.b
+  addPC 1
+
+movMC :: State8080M State8080
+movMC = do
+  s <- get
+  toMem s.c
+  addPC 1
+
+movMD :: State8080M State8080
+movMD = do
+  s <- get
+  toMem s.d
+  addPC 1
+
+movME :: State8080M State8080
+movME = do
+  s <- get
+  toMem s.e
+  addPC 1
+
+movMH :: State8080M State8080
+movMH = do
+  s <- get
+  toMem s.h
+  addPC 1
+
+movML :: State8080M State8080
+movML = do
+  s <- get
+  toMem s.l
+  addPC 1
+
+movAB :: State8080M State8080
+movAB = do
+  addPC 1
+  s <- get
+  put s{a = s.b}
+  return s
+
+movAC :: State8080M State8080
+movAC = do
+  addPC 1
+  s <- get
+  put s{a = s.c}
+  return s
+movAD :: State8080M State8080
+movAD = do
+  addPC 1
+  s <- get
+  put s{a = s.d}
+  return s
+
+movAE :: State8080M State8080
+movAE = do
+  addPC 1
+  s <- get
+  put s{a = s.e}
+  return s
+
+movAL :: State8080M State8080
+movAL = do
+  s <- get
+  put s{a = s.l}
+  addPC 1
+
+mviD :: State8080M State8080
+mviD = do
+  s <- get
+  byte <- getNNextByte' 1
+  put s{d = byte}
+  addPC 2
+
+mviE :: State8080M State8080
+mviE = do
+  s <- get
+  byte <- getNNextByte' 1
+  put s{e = byte}
+  addPC 2
+
+mviL :: State8080M State8080
+mviL = do
+  s <- get
+  byte <- getNNextByte' 1
+  put s{l = byte}
+  addPC 2
+
 lhld :: Word16 -> State8080M State8080
 lhld adr = do
   s <- get

@@ -7,6 +7,7 @@ import Data.Binary (Word8)
 import Data.Bits (Bits (bit, xor), (.&.), (.^.), (.|.))
 import States
 import Utils
+import ArithInstructions (getCCodes)
 
 ani :: Word8 -> State8080M State8080
 ani byte = do
@@ -48,13 +49,19 @@ oram = do
   put s{a = res, pc = s.pc + 2, ccodes = s.ccodes{si = cc.si, cy = cc.cy, z = cc.z, p = cc.p}}
   return s
 
+xraa :: State8080M State8080
+xraa = do
+  addPC 1
+  s <- get
+  let (res, cc) = bitwiseOp xor s.a s.a
+  let cc' = cc{ac = s.ccodes.ac}
+
+  put s{a = res, ccodes = cc'}
+  return s
+
 -- TODO: maybe change this to a function that uses state
 bitwiseOp :: (Word8 -> Word8 -> Word8) -> Word8 -> Word8 -> (Word8, CCState)
-bitwiseOp op operand1 operand2 = (res, ccstate)
+bitwiseOp op operand1 operand2 = (res, cc)
  where
   res = op operand1 operand2
-  sign = getSign res
-  carry = 0
-  zero = if res == 0 then 1 else 0
-  p = getParity res
-  ccstate = CCState{si = sign, cy = carry, z = zero, p = p, ac = 0}
+  cc = getCCodes False False res

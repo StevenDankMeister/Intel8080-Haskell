@@ -23,6 +23,7 @@ import MoveInstructions
 import StackInstructions
 import States
 import Utils
+import Interrupts
 
 -- TODO: Fix this print
 instructionNotImplemented :: Word8 -> State8080 -> a
@@ -44,9 +45,9 @@ emulateProgram = do
   let pc = fromIntegral s.pc
   if pc < BS.length s.program
     then do
+      liftIO (print s)
       _ <- liftIO (dissasembleOp s.program pc)
       s <- emulateNextOp
-      liftIO (print s)
       emulateProgram
     else return s
 
@@ -61,20 +62,32 @@ emulateNextOp = do
     | op == 0x05 -> dcrB
     | op == 0x06 -> movIB
     | op == 0x09 -> dadB
+    | op == 0x0c -> inrC
     | op == 0x0d -> dcrC
     | op == 0x0e -> movIC
     | op == 0x0f -> rrc
     | op == 0x11 -> lxiD
     | op == 0x13 -> inxD
+    | op == 0x14 -> inrD
+    | op == 0x15 -> dcrD
+    | op == 0x16 -> mviD
     | op == 0x19 -> dadD
     | op == 0x1a -> ldaxD
+    | op == 0x1c -> inrE
+    | op == 0x1d -> dcrE
+    | op == 0x1e -> mviE
     | op == 0x21 -> lxiH
     | op == 0x23 -> inxH
+    | op == 0x24 -> inrH
+    | op == 0x25 -> dcrH
     | op == 0x26 -> movIH
     | op == 0x29 -> dadH
     | op == 0x2a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lhld adr
+    | op == 0x2c -> inrL
+    | op == 0x2d -> dcrL
+    | op == 0x2e -> mviL
     | op == 0x31 -> lxiSP
     | op == 0x32 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -84,6 +97,7 @@ emulateNextOp = do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lda adr
     | op == 0x3c -> inrA
+    | op == 0x3d -> dcrA
     | op == 0x3e -> movIA
     | op == 0x40 -> nop
     | op == 0x41 -> movBC
@@ -133,11 +147,43 @@ emulateNextOp = do
     | op == 0x6d -> nop
     | op == 0x6e -> movLM
     | op == 0x6f -> movLA
+    | op == 0x70 -> movMB
+    | op == 0x71 -> movMC
+    | op == 0x72 -> movMD
+    | op == 0x73 -> movME
+    | op == 0x74 -> movMH
+    | op == 0x75 -> movML
+    | op == 0x76 -> hlt
     | op == 0x77 -> movMA
-    -- 0x7a
-    -- 0x7b
+    | op == 0x78 -> movAB
+    | op == 0x79 -> movAC
+    | op == 0x7a -> movAD
+    | op == 0x7b -> movAE
     | op == 0x7c -> movAH
+    | op == 0x7d -> movAL
     | op == 0x7e -> movAM
+    | op == 0x80 -> addB
+    | op == 0x81 -> addC
+    | op == 0x82 -> addD
+    | op == 0x83 -> addE
+    | op == 0x84 -> addH
+    | op == 0x85 -> addL
+    | op == 0x87 -> addA
+    | op == 0x88 -> adcB
+    | op == 0x89 -> adcC
+    | op == 0x8a -> adcD
+    | op == 0x8b -> adcE
+    | op == 0x8c -> adcH
+    | op == 0x8d -> adcL
+    | op == 0x8f -> adcA
+    | op == 0x90 -> subB
+    | op == 0x91 -> subC
+    | op == 0x92 -> subD
+    | op == 0x93 -> subE
+    | op == 0x94 -> subH
+    | op == 0x95 -> subL
+    | op == 0x97 -> subA
+    | op == 0xaf -> xraa
     | op == 0xb6 -> oram
     | op == 0xc0 -> rnz
     | op == 0xc1 -> stackPopRegisterB
@@ -338,7 +384,6 @@ runTest = do
   s <- get
   let pc = fromIntegral s.pc
   -- Print instruction to be executed
-  -- _ <- liftIO (dissasembleOp s.program pc)
   -- Special test behaviour
   if pc == 0x0005
     then
@@ -353,10 +398,12 @@ runTest = do
           runTest
         else do
           liftIO (print s.e)
-          runTest
+          -- runTest
+          return s
     else
       if pc < BS.length s.program
         then do
+          -- _ <- liftIO (dissasembleOp s.program pc)
           emulateNextOp
           s <- get
           -- liftIO (print s)
@@ -367,14 +414,14 @@ runTest = do
 test :: IO (State8080, State8080)
 test = do
   let memory = pack (replicate 0x5 0)
-  let testbytes = pack [0x0d]
+  let testbytes = pack [0x70, 0x7e]
   let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
 
   let test_memory = append testbytes memory
   let startState =
         State8080
-          { a = 1
-          , b = 0
+          { a = 0
+          , b = 1
           , c = 0
           , d = 0
           , e = 0

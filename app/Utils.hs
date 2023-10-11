@@ -36,6 +36,14 @@ getMem s = byte
   adr = concatBytesBE s.h s.l
   byte = getByteAtAdr s.program adr
 
+toMem :: Word8 -> State8080M State8080
+toMem byte = do 
+  s <- get
+  let adr = concatBytesBE s.h s.l
+  let program = insertIntoByteString byte s.program (fromIntegral adr)
+  put s{program = program}
+  return s
+
 getParity :: (Bits a) => a -> Word8
 getParity bits = fromIntegral (complementBit (popCount bits `mod` 2) 0)
 
@@ -54,6 +62,12 @@ nextTwoBytesToWord16BE mem pc = res
 
 getNNextByte :: ByteString -> Word16 -> Int -> Word8
 getNNextByte mem pc n = mem `getByteAtAdr` (pc + fromIntegral n)
+
+getNNextByte' :: Int -> State8080M Word8
+getNNextByte' n = do
+  s <- get
+  let byte = getNNextByte s.program s.pc n
+  return byte
 
 getByteAtAdr :: ByteString -> Word16 -> Word8
 getByteAtAdr mem pc = mem `BS.index` fromIntegral pc
