@@ -5,7 +5,7 @@ module ArithInstructions where
 import Control.Monad.ST (runST)
 import Control.Monad.State
 import Data.Binary (Word16, Word32, Word8)
-import Data.Bits (Bits (complementBit, popCount, (.|.), complement), (.&.))
+import Data.Bits (Bits (complement, complementBit, popCount, (.|.)), shiftR, xor, (.&.))
 import States
 import Utils
 
@@ -34,7 +34,6 @@ dcrC = do
 
   put s{c = res8, ccodes = cc}
   return s
-
 
 dcrA :: State8080M State8080
 dcrA = do
@@ -75,7 +74,7 @@ dcrE = do
   return s
 
 dcrL :: State8080M State8080
-dcrL = do 
+dcrL = do
   addPC 1
   s <- get
   let (res8, cc) = dcrRegister s.l s
@@ -85,9 +84,9 @@ dcrL = do
 
 dcrRegister :: Word8 -> State8080 -> (Word8, CCState)
 dcrRegister reg st = (res8, ccodes)
-  where (res8, _) = arithOp (-) reg 1
-        ccodes = getCCodes (maskLower4Bytes reg - 1 == 0) (toEnum $ fromIntegral st.ccodes.cy) res8
-
+ where
+  (res8, _) = arithOp (-) reg 1
+  ccodes = getCCodes (maskLower4Bytes reg - 1 == 0) (toEnum $ fromIntegral st.ccodes.cy) res8
 
 inxH :: State8080M State8080
 inxH = do
@@ -173,7 +172,7 @@ addB :: State8080M State8080
 addB = do
   s <- get
   let (res, ccodes) = addRegister s.a s.b
-  put s{a=res, ccodes = ccodes}
+  put s{a = res, ccodes = ccodes}
   addPC 1
 
 addC :: State8080M State8080
@@ -181,7 +180,7 @@ addC = do
   s <- get
   addRegisterA s.c
   addPC 1
-  
+
 addD :: State8080M State8080
 addD = do
   s <- get
@@ -216,15 +215,8 @@ addRegisterA :: Word8 -> State8080M State8080
 addRegisterA reg = do
   s <- get
   let (res, ccodes) = addRegister s.a reg
-  put s{a=res, ccodes = ccodes}
+  put s{a = res, ccodes = ccodes}
   return s
-
-addRegister :: Word8 -> Word8 -> (Word8, CCState)
-addRegister operand1 operand2 = (res8, ccodes)
-  where (res8, res16) = arithOp (+) operand1 operand2
-        op1_masked = maskLower4Bytes operand1
-        op2_masked = maskLower4Bytes operand2
-        ccodes = getCCodes (op1_masked + op2_masked == 0xf) (res16 > 0xff) res8
 
 subB :: State8080M State8080
 subB = do
@@ -243,7 +235,7 @@ subD = do
   s <- get
   subRegisterA s.d
   addPC 1
-  
+
 subE :: State8080M State8080
 subE = do
   s <- get
@@ -313,7 +305,9 @@ adcA = do
 sbbB :: State8080M State8080
 sbbB = do
   s <- get
-  sbbRegisterA s.b s.ccodes.cy
+  let (res, ccodes) = subRegisterWithCarry s.a s.b s.ccodes.cy
+  -- sbbRegisterA s.b s.ccodes.cy
+  put s{a = res, ccodes = ccodes}
   addPC 1
 
 sbbC :: State8080M State8080
@@ -327,7 +321,7 @@ sbbD = do
   s <- get
   sbbRegisterA s.d s.ccodes.cy
   addPC 1
-  
+
 sbbE :: State8080M State8080
 sbbE = do
   s <- get
@@ -361,43 +355,46 @@ sbbA = do
 
 sbbRegisterA :: Word8 -> Word8 -> State8080M State8080
 sbbRegisterA reg carry = do
-  if carry == 0 then do
-    subRegisterA reg
-  else do
-    s <- get
-    -- TODO: WORKS FOR NOW?? BUT REFACTOR
-    let reg_twos = complement reg + 1
-    let (res, ccodes_c) = subRegister reg_twos carry
-    let (total, ccodes_t) = subRegister s.a (complement res + 1)
-    let ccodes = ccodes_t{cy = ccodes_c.cy .|. ccodes_t.cy, ac = ccodes_c.ac .|. ccodes_t.ac}
-    put s{a = total, ccodes = ccodes}
-    return s
+  if carry == 0
+    then do
+      subRegisterA reg
+    else do
+      s <- get
+      -- TODO: WORKS FOR NOW?? BUT REFACTOR
+      let reg_twos = complement reg + 1
+      let (res, ccodes_c) = subRegister reg_twos carry
+      let (total, ccodes_t) = subRegister s.a (complement res + 1)
+      let ccodes = ccodes_t{cy = ccodes_c.cy .|. ccodes_t.cy, ac = ccodes_c.ac .|. ccodes_t.ac}
+      put s{a = total, ccodes = ccodes}
+      return s
 
 adcRegisterA :: Word8 -> Word8 -> State8080M State8080
 adcRegisterA reg carry = do
   s <- get
-  if carry == 0 then do
-    addRegisterA reg
-  else do
-    let (res, ccodes_c) = addRegister reg carry
-    let (total, ccodes_t) = addRegister s.a res
-    let ccodes = ccodes_t{cy = ccodes_c.cy .|. ccodes_t.cy, ac = ccodes_c.ac .|. ccodes_t.ac}
-    put s{a = total, ccodes = ccodes}
-    return s
-    
+  if carry == 0
+    then do
+      addRegisterA reg
+    else do
+      let (res, ccodes_c) = addRegister reg carry
+      let (total, ccodes_t) = addRegister s.a res
+      let ccodes = ccodes_t{cy = ccodes_c.cy .|. ccodes_t.cy, ac = ccodes_c.ac .|. ccodes_t.ac}
+      put s{a = total, ccodes = ccodes}
+      return s
+
 subRegisterA :: Word8 -> State8080M State8080
 subRegisterA reg = do
   s <- get
   let (res, ccodes) = subRegister s.a reg
-  put s{a=res, ccodes = ccodes}
+  put s{a = res, ccodes = ccodes}
   return s
 
 subRegister :: Word8 -> Word8 -> (Word8, CCState)
 subRegister operand1 operand2 = (res8, ccodes)
-  where (res8, res16) = arithOp (-) operand1 operand2
-        op1_masked = maskLower4Bytes operand1
-        op2_masked = maskLower4Bytes operand2
-        ccodes = getCCodes (op1_masked < op2_masked) (operand1 < operand2) res8
+ where
+  (res8, res16) = arithOp (-) operand1 operand2
+  op1_masked = maskLower4Bytes operand1
+  op2_masked = maskLower4Bytes operand2
+  ccodes = getCCodes (op1_masked < op2_masked) (operand1 < operand2) res8
 
 aci :: State8080M State8080
 aci = do
@@ -473,101 +470,87 @@ sbi = do
 inrB :: State8080M State8080
 inrB = do
   s <- get
-  let (res8, res16) = arithOp (+) s.b 1
-  let b_lower = s.b .|. 0xf
-
-  let ccodes = getCCodes (b_lower + 1 > 0xf) (res16 > 0xff) res8
-
-  put s{b = res8, pc = s.pc + 1, ccodes = ccodes}
-  return s
+  let (res, ccodes) = incRegister s.b s
+  put s{b = res, ccodes = ccodes}
+  addPC 1
 
 inrD :: State8080M State8080
 inrD = do
-  addPC 1
   s <- get
-  let (res8, res16) = arithOp (+) s.d 1
-  let d_lower = maskLower4Bytes s.d
-
-  let ccodes = getCCodes (d_lower + 1 > 0xf) (res16 > 0xff) res8
-
-  put s{d = res8, ccodes = ccodes}
-  return s
+  let (res, ccodes) = incRegister s.d s
+  put s{d = res, ccodes = ccodes}
+  addPC 1
 
 inrC :: State8080M State8080
 inrC = do
   addPC 1
   s <- get
-  let (res8, res16) = arithOp (+) s.c 1
-  let c_lower = maskLower4Bytes s.c
-
-  let ccodes = getCCodes (c_lower + 1 > 0xf) (res16 > 0xff) res8
-
-  put s{c = res8, ccodes = ccodes}
+  let (res, ccodes) = incRegister s.c s
+  put s{c = res, ccodes = ccodes}
   return s
 
 inrE :: State8080M State8080
 inrE = do
-  addPC 1
   s <- get
-  let (res8, res16) = arithOp (+) s.e 1
-  let e_lower = maskLower4Bytes s.e
-
-  let ccodes = getCCodes (e_lower + 1 > 0xf) (res16 > 0xff) res8
-
-  put s{e = res8, ccodes = ccodes}
-  return s
+  let (res, ccodes) = incRegister s.e s
+  put s{e = res, ccodes = ccodes}
+  addPC 1
 
 inrH :: State8080M State8080
 inrH = do
-  addPC 1
   s <- get
-  let (res8, res16) = arithOp (+) s.h 1
-  let h_lower = maskLower4Bytes s.h
-
-  let ccodes = getCCodes (h_lower + 1 > 0xf) (res16 > 0xff) res8
-
-  put s{h = res8, ccodes = ccodes}
-  return s
+  let (res, ccodes) = incRegister s.h s
+  put s{h = res, ccodes = ccodes}
+  addPC 1
 
 inrL :: State8080M State8080
 inrL = do
-  addPC 1
   s <- get
-  let (res8, res16) = arithOp (+) s.l 1
-  let l_lower = maskLower4Bytes s.l
-
-  let ccodes = getCCodes (l_lower + 1 > 0xf) (res16 > 0xff) res8
-
-  put s{l = res8, ccodes = ccodes}
-  return s
+  let (res, ccodes) = incRegister s.l s
+  put s{l = res, ccodes = ccodes}
+  addPC 1
 
 inrM :: State8080M State8080
 inrM = do
-  addPC 1
   s <- get
-  let mem = getMem s
-  let (res8, res16) = arithOp (+) mem 1
-  let mem_lower = maskLower4Bytes mem
-
-  let ccodes = getCCodes (mem_lower + 1 > 0xf) (res16 > 0xff) res8
-
-  toMem mem
-  s <- get
-
+  let (res, ccodes) = incRegister (getMem s) s
+  toMem res
   put s{ccodes = ccodes}
-  return s
+  addPC 1
 
 inrA :: State8080M State8080
 inrA = do
-  addPC 1
   s <- get
-  let (res8, res16) = arithOp (+) s.a 1
-  let a_lower = maskLower4Bytes s.a
+  let (res, ccodes) = incRegister s.a s
+  put s{a = res, ccodes = ccodes}
+  addPC 1
 
-  let ccodes = getCCodes (a_lower + 1 > 0xf) (res16 > 0xff) res8
+subRegisterWithCarry :: Word8 -> Word8 -> Word8 -> (Word8, CCState)
+subRegisterWithCarry reg operand carry = (res, ccodes')
+ where
+  operand_twos = complement (operand + carry) + 1
+  (res, ccodes) = addRegister reg operand_twos
+  carry_flipped = ccodes.cy `xor` 0x01
+  -- TODO: DOES IT ACTUALLY WORK???
+  aux_carry
+    | operand + carry == 16 = 0
+    | reg .&. 0x10 /= operand .&. 0x10 = 1
+    | otherwise = 0
+  ccodes' = ccodes{cy = carry_flipped, ac = aux_carry}
 
-  put s{a = res8, ccodes = ccodes}
-  return s
+incRegister :: Word8 -> State8080 -> (Word8, CCState)
+incRegister reg s = (res, ccodes')
+ where
+  (res, ccodes) = addRegister reg 1
+  ccodes' = ccodes{cy = s.ccodes.cy}
+
+addRegister :: Word8 -> Word8 -> (Word8, CCState)
+addRegister operand1 operand2 = (res8, ccodes)
+ where
+  (res8, res16) = arithOp (+) operand1 operand2
+  op1_masked = maskLower4Bytes operand1
+  op2_masked = maskLower4Bytes operand2
+  ccodes = getCCodes (op1_masked + op2_masked == 0xf) (res16 > 0xff) res8
 
 getCCodes :: Bool -> Bool -> Word8 -> CCState
 getCCodes auxcond carrycond byte = res

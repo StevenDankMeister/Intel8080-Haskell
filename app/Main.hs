@@ -17,13 +17,13 @@ import ArithInstructions
 import BitwiseInstructions
 import Control.Arrow qualified as BS
 import Disassembler (Byte, dissasembleOp, instructionPrintMap)
+import Interrupts
 import JumpInstructions
 import LoadInstructions
 import MoveInstructions
 import StackInstructions
 import States
 import Utils
-import Interrupts
 
 -- TODO: Fix this print
 instructionNotImplemented :: Word8 -> State8080 -> a
@@ -410,10 +410,10 @@ runTest = do
     else
       if pc < BS.length s.program
         then do
-          _ <- liftIO (dissasembleOp s.program pc)
           emulateNextOp
           s <- get
-          liftIO (print s)
+          _ <- liftIO (dissasembleOp s.program pc)
+          liftIO $ putStrLn ("          " ++ show s)
           runTest
         else return s
 

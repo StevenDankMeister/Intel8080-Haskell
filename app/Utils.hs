@@ -20,15 +20,22 @@ maskLower4Bytes x = res
  where
   res = x .&. 0xf
 
--- TODO:
--- Figure out why:
---   s < addPC n
--- s is not the new state
+setPC :: Word16 -> State8080M State8080
+setPC adr = do
+  s <- get
+  put s{pc = adr}
+  return s
+
 addPC :: Word16 -> State8080M State8080
 addPC x = do
   s <- get
   put s{pc = s.pc + x}
   return s
+
+getIM :: State8080 -> Word8
+getIM s = im
+ where
+  im = getNNextByte s.program s.pc 1
 
 getMem :: State8080 -> Word8
 getMem s = byte
@@ -37,7 +44,7 @@ getMem s = byte
   byte = getByteAtAdr s.program adr
 
 toMem :: Word8 -> State8080M State8080
-toMem byte = do 
+toMem byte = do
   s <- get
   let adr = concatBytesBE s.h s.l
   let program = insertIntoByteString byte s.program (fromIntegral adr)
@@ -68,6 +75,9 @@ getNNextByte' n = do
   s <- get
   let byte = getNNextByte s.program s.pc n
   return byte
+
+getNextByte :: State8080 -> Word8
+getNextByte s = getNNextByte s.program s.pc 1
 
 getByteAtAdr :: ByteString -> Word16 -> Word8
 getByteAtAdr mem pc = mem `BS.index` fromIntegral pc

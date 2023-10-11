@@ -279,7 +279,7 @@ instructionPrintMap =
 
 dissasembleOp :: ByteString -> Int -> IO Int
 dissasembleOp ops pc = do
-  Prelude.putStr (printf "0x%04x" pc ++ " ")
+  Prelude.putStr (printf "0x%04x" pc ++ "    ")
   let code = BS.index ops pc
   let op = instructionPrintMap Data.Map.!? code
   case op of
