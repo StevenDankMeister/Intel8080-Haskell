@@ -183,6 +183,14 @@ emulateNextOp = do
     | op == 0x94 -> subH
     | op == 0x95 -> subL
     | op == 0x97 -> subA
+    | op == 0x98 -> sbbB
+    | op == 0x99 -> sbbC
+    | op == 0x9a -> sbbD
+    | op == 0x9b -> sbbE
+    | op == 0x9c -> sbbH
+    | op == 0x9d -> sbbL
+    | op == 0x9e -> sbbM
+    | op == 0x9f -> sbbA
     | op == 0xaf -> xraa
     | op == 0xb6 -> oram
     | op == 0xc0 -> rnz
@@ -383,7 +391,6 @@ runTest :: State8080M State8080
 runTest = do
   s <- get
   let pc = fromIntegral s.pc
-  -- Print instruction to be executed
   -- Special test behaviour
   if pc == 0x0005
     then
@@ -403,7 +410,7 @@ runTest = do
     else
       if pc < BS.length s.program
         then do
-          -- _ <- liftIO (dissasembleOp s.program pc)
+          _ <- liftIO (dissasembleOp s.program pc)
           emulateNextOp
           s <- get
           -- liftIO (print s)

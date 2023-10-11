@@ -310,6 +310,67 @@ adcA = do
   adcRegisterA s.a s.ccodes.cy
   addPC 1
 
+sbbB :: State8080M State8080
+sbbB = do
+  s <- get
+  sbbRegisterA s.b s.ccodes.cy
+  addPC 1
+
+sbbC :: State8080M State8080
+sbbC = do
+  s <- get
+  sbbRegisterA s.c s.ccodes.cy
+  addPC 1
+
+sbbD :: State8080M State8080
+sbbD = do
+  s <- get
+  sbbRegisterA s.d s.ccodes.cy
+  addPC 1
+  
+sbbE :: State8080M State8080
+sbbE = do
+  s <- get
+  sbbRegisterA s.e s.ccodes.cy
+  addPC 1
+
+sbbH :: State8080M State8080
+sbbH = do
+  s <- get
+  sbbRegisterA s.h s.ccodes.cy
+  addPC 1
+
+sbbL :: State8080M State8080
+sbbL = do
+  s <- get
+  sbbRegisterA s.l s.ccodes.cy
+  addPC 1
+
+sbbM :: State8080M State8080
+sbbM = do
+  s <- get
+  let mem = getMem s
+  sbbRegisterA mem s.ccodes.cy
+  addPC 1
+
+sbbA :: State8080M State8080
+sbbA = do
+  s <- get
+  sbbRegisterA s.a s.ccodes.cy
+  addPC 1
+
+sbbRegisterA :: Word8 -> Word8 -> State8080M State8080
+sbbRegisterA reg carry = do
+  if carry == 0 then do
+    subRegisterA reg
+  else do
+    s <- get
+    let (res, ccodes_c) = subRegister reg carry
+    let (total, ccodes_t) = subRegister s.a res
+    let ccodes = ccodes_t{cy = ccodes_c.cy .|. ccodes_t.cy, ac = ccodes_c.ac .|. ccodes_t.ac}
+    put s{a = total, ccodes = ccodes}
+    return s
+
 adcRegisterA :: Word8 -> Word8 -> State8080M State8080
 adcRegisterA reg carry = do
   s <- get
