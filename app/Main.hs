@@ -413,7 +413,7 @@ runTest = do
           _ <- liftIO (dissasembleOp s.program pc)
           emulateNextOp
           s <- get
-          -- liftIO (print s)
+          liftIO (print s)
           runTest
         else return s
 
@@ -421,8 +421,8 @@ runTest = do
 test :: IO (State8080, State8080)
 test = do
   let memory = pack (replicate 0x5 0)
-  let testbytes = pack [0x70, 0x7e]
-  let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
+  let testbytes = pack [0x98]
+  let ccodes = CCState{cy = 1, ac = 0, si = 0, z = 0, p = 0}
 
   let test_memory = append testbytes memory
   let startState =

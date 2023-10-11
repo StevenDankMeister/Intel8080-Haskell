@@ -5,7 +5,7 @@ module ArithInstructions where
 import Control.Monad.ST (runST)
 import Control.Monad.State
 import Data.Binary (Word16, Word32, Word8)
-import Data.Bits (Bits (complementBit, popCount, (.|.)), (.&.))
+import Data.Bits (Bits (complementBit, popCount, (.|.), complement), (.&.))
 import States
 import Utils
 
@@ -365,8 +365,10 @@ sbbRegisterA reg carry = do
     subRegisterA reg
   else do
     s <- get
-    let (res, ccodes_c) = subRegister reg carry
-    let (total, ccodes_t) = subRegister s.a res
+    -- TODO: WORKS FOR NOW?? BUT REFACTOR
+    let reg_twos = complement reg + 1
+    let (res, ccodes_c) = subRegister reg_twos carry
+    let (total, ccodes_t) = subRegister s.a (complement res + 1)
     let ccodes = ccodes_t{cy = ccodes_c.cy .|. ccodes_t.cy, ac = ccodes_c.ac .|. ccodes_t.ac}
     put s{a = total, ccodes = ccodes}
     return s

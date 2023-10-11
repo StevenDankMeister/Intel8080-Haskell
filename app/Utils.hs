@@ -18,7 +18,7 @@ import States
 maskLower4Bytes :: (Bits a, Num a) => a -> a
 maskLower4Bytes x = res
  where
-  res = x .|. 0xf
+  res = x .&. 0xf
 
 -- TODO:
 -- Figure out why:
