@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 import Control.Monad.State (MonadIO (liftIO), MonadState (state), State, StateT (runStateT), evalStateT, execStateT, get, modify, put, return, runState)
 import Data.Binary (Binary (), Word16, Word32, Word8)
@@ -60,7 +61,7 @@ emulateNextOp = do
     | op == 0x01 -> lxiB
     | op == 0x04 -> inrB
     | op == 0x05 -> dcrB
-    | op == 0x06 -> movIB
+    | op == 0x06 -> $(mvIX "b") -- movIB
     | op == 0x09 -> dadB
     | op == 0x0c -> inrC
     | op == 0x0d -> dcrC
@@ -98,55 +99,56 @@ emulateNextOp = do
         lda adr
     | op == 0x3c -> inrA
     | op == 0x3d -> dcrA
-    | op == 0x3e -> movIA
+    -- \| op == 0x3e -> movIA
+    | op == 0x3e -> $(mvIX "a")
     | op == 0x40 -> nop
-    | op == 0x41 -> movBC
-    | op == 0x42 -> movBD
-    | op == 0x43 -> movBE
-    | op == 0x44 -> movBH
-    | op == 0x45 -> movBL
-    | op == 0x46 -> movBM
-    | op == 0x47 -> movBA
-    | op == 0x48 -> movCB
+    | op == 0x41 -> $(movXY "b" "c") -- movBC
+    | op == 0x42 -> $(movXY "b" "d") -- movBD
+    | op == 0x43 -> $(movXY "b" "e") -- movBE
+    | op == 0x44 -> $(movXY "b" "h") -- movBH
+    | op == 0x45 -> $(movXY "b" "l") -- movBL
+    | op == 0x46 -> $(movXY "b" "getMem") -- movBM
+    | op == 0x47 -> $(movXY "b" "a") -- movBA
+    | op == 0x48 -> $(movXY "c" "b") -- movCB
     | op == 0x49 -> nop
-    | op == 0x4a -> movCD
-    | op == 0x4b -> movCE
-    | op == 0x4c -> movCH
-    | op == 0x4d -> movCL
-    | op == 0x4e -> movCM
-    | op == 0x4f -> movCA
-    | op == 0x50 -> movDB
-    | op == 0x51 -> movDC
+    | op == 0x4a -> $(movXY "c" "d") -- movCD
+    | op == 0x4b -> $(movXY "c" "e") -- movCE
+    | op == 0x4c -> $(movXY "c" "h") -- movCH
+    | op == 0x4d -> $(movXY "c" "l") -- movCL
+    | op == 0x4e -> $(movXY "c" "getMem") -- movCM
+    | op == 0x4f -> $(movXY "c" "a") -- movCA
+    | op == 0x50 -> $(movXY "d" "b") -- movDB
+    | op == 0x51 -> $(movXY "d" "c") -- movDC
     | op == 0x52 -> nop
-    | op == 0x53 -> movDE
-    | op == 0x54 -> movDH
-    | op == 0x55 -> movDL
-    | op == 0x56 -> movDM
-    | op == 0x57 -> movDA
-    | op == 0x58 -> movEB
-    | op == 0x59 -> movEC
-    | op == 0x5a -> movED
+    | op == 0x53 -> $(movXY "d" "e") -- movDE
+    | op == 0x54 -> $(movXY "d" "h") -- movDH
+    | op == 0x55 -> $(movXY "d" "l") -- movDL
+    | op == 0x56 -> $(movXY "d" "getMem") -- movDM
+    | op == 0x57 -> $(movXY "d" "a") -- movDA
+    | op == 0x58 -> $(movXY "e" "b") -- movEB
+    | op == 0x59 -> $(movXY "e" "c") -- movEC
+    | op == 0x5a -> $(movXY "e" "d") -- movED
     | op == 0x5b -> nop
-    | op == 0x5c -> movEH
-    | op == 0x5d -> movEL
-    | op == 0x5e -> movEM
-    | op == 0x5f -> movEA
-    | op == 0x60 -> movHB
-    | op == 0x61 -> movHC
-    | op == 0x62 -> movHD
-    | op == 0x63 -> movHE
+    | op == 0x5c -> $(movXY "e" "h") -- movEH
+    | op == 0x5d -> $(movXY "e" "l") -- movEL
+    | op == 0x5e -> $(movXY "e" "getMem") -- movEM
+    | op == 0x5f -> $(movXY "e" "a") -- movEA
+    | op == 0x60 -> $(movXY "h" "b") -- movHB
+    | op == 0x61 -> $(movXY "h" "c") -- movHC
+    | op == 0x62 -> $(movXY "h" "d") -- movHD
+    | op == 0x63 -> $(movXY "h" "e") -- movHE
     | op == 0x64 -> nop
-    | op == 0x65 -> movHL
-    | op == 0x66 -> movHM
-    | op == 0x67 -> movHA
-    | op == 0x68 -> movLB
-    | op == 0x69 -> movLC
-    | op == 0x6a -> movLD
-    | op == 0x6b -> movLE
-    | op == 0x6c -> movLH
+    | op == 0x65 -> $(movXY "h" "l") -- movHL
+    | op == 0x66 -> $(movXY "h" "getMem") -- movHM
+    | op == 0x67 -> $(movXY "h" "a") -- movHA
+    | op == 0x68 -> $(movXY "l" "b") -- movLB
+    | op == 0x69 -> $(movXY "l" "c") -- movLC
+    | op == 0x6a -> $(movXY "l" "d") -- movLD
+    | op == 0x6b -> $(movXY "l" "e") -- movLE
+    | op == 0x6c -> $(movXY "l" "h") -- movLH
     | op == 0x6d -> nop
-    | op == 0x6e -> movLM
-    | op == 0x6f -> movLA
+    | op == 0x6e -> $(movXY "l" "getMem") -- movLM
+    | op == 0x6f -> $(movXY "l" "a") -- movLA
     | op == 0x70 -> movMB
     | op == 0x71 -> movMC
     | op == 0x72 -> movMD
@@ -155,20 +157,20 @@ emulateNextOp = do
     | op == 0x75 -> movML
     | op == 0x76 -> hlt
     | op == 0x77 -> movMA
-    | op == 0x78 -> movAB
-    | op == 0x79 -> movAC
-    | op == 0x7a -> movAD
-    | op == 0x7b -> movAE
-    | op == 0x7c -> movAH
-    | op == 0x7d -> movAL
-    | op == 0x7e -> movAM
-    | op == 0x80 -> addB
-    | op == 0x81 -> addC
-    | op == 0x82 -> addD
-    | op == 0x83 -> addE
-    | op == 0x84 -> addH
-    | op == 0x85 -> addL
-    | op == 0x87 -> addA
+    | op == 0x78 -> $(movXY "a" "b") -- movAB
+    | op == 0x79 -> $(movXY "a" "c") -- movAC
+    | op == 0x7a -> $(movXY "a" "d") -- movAD
+    | op == 0x7b -> $(movXY "a" "e") -- movAE
+    | op == 0x7c -> $(movXY "a" "h") -- movAH
+    | op == 0x7d -> $(movXY "a" "l") -- movAL
+    | op == 0x7e -> $(movXY "a" "getMem") -- movAM
+    | op == 0x80 -> addRegisterA s.b
+    | op == 0x81 -> addRegisterA s.c
+    | op == 0x82 -> addRegisterA s.d
+    | op == 0x83 -> addRegisterA s.e
+    | op == 0x84 -> addRegisterA s.h
+    | op == 0x85 -> addRegisterA s.l
+    | op == 0x87 -> addRegisterA s.a
     | op == 0x88 -> adcB
     | op == 0x89 -> adcC
     | op == 0x8a -> adcD
@@ -176,21 +178,21 @@ emulateNextOp = do
     | op == 0x8c -> adcH
     | op == 0x8d -> adcL
     | op == 0x8f -> adcA
-    | op == 0x90 -> subB
-    | op == 0x91 -> subC
-    | op == 0x92 -> subD
-    | op == 0x93 -> subE
-    | op == 0x94 -> subH
-    | op == 0x95 -> subL
-    | op == 0x97 -> subA
-    | op == 0x98 -> sbbB
-    | op == 0x99 -> sbbC
-    | op == 0x9a -> sbbD
-    | op == 0x9b -> sbbE
-    | op == 0x9c -> sbbH
-    | op == 0x9d -> sbbL
-    | op == 0x9e -> sbbM
-    | op == 0x9f -> sbbA
+    | op == 0x90 -> subRegisterA s.b
+    | op == 0x91 -> subRegisterA s.c
+    | op == 0x92 -> subRegisterA s.d
+    | op == 0x93 -> subRegisterA s.e
+    | op == 0x94 -> subRegisterA s.h
+    | op == 0x95 -> subRegisterA s.l
+    | op == 0x97 -> subRegisterA s.a
+    | op == 0x98 -> sbbAWithRegister s.b
+    | op == 0x99 -> sbbAWithRegister s.c
+    | op == 0x9a -> sbbAWithRegister s.d
+    | op == 0x9b -> sbbAWithRegister s.e
+    | op == 0x9c -> sbbAWithRegister s.h
+    | op == 0x9d -> sbbAWithRegister s.l
+    | op == 0x9e -> sbbAWithRegister $ getMem s
+    | op == 0x9f -> sbbAWithRegister s.a
     | op == 0xaf -> xraa
     | op == 0xb6 -> oram
     | op == 0xc0 -> rnz
