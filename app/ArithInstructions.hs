@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 
 module ArithInstructions where
 
@@ -8,6 +9,7 @@ import Data.Binary (Word16, Word32, Word8)
 import Data.Bits (Bits (complement, complementBit, popCount, (.|.)), shiftR, xor, (.&.))
 import Language.Haskell.TH
 import Language.Haskell.TH.Syntax (ModName (ModName), addCorePlugin)
+import Macros (addPC_T, getRecFieldValue_T, getState_T, put_T, recUpd_T)
 import States
 import Utils
 
@@ -88,7 +90,7 @@ dcrRegister :: Word8 -> State8080 -> (Word8, CCState)
 dcrRegister reg st = (res8, ccodes)
  where
   (res8, _) = arithOp (-) reg 1
-  ccodes = getCCodes (maskLower4Bytes reg - 1 == 0) (toEnum $ fromIntegral st.ccodes.cy) res8
+  ccodes = getCCodes (maskLower4Bytes reg == 0) (toEnum $ fromIntegral st.ccodes.cy) res8
 
 inxH :: State8080M State8080
 inxH = do
@@ -184,51 +186,10 @@ addRegisterA reg = do
   put s{a = res, ccodes = ccodes}
   addPC 1
 
-adcB :: State8080M State8080
-adcB = do
+adcRegisterA :: Word8 -> State8080M State8080
+adcRegisterA reg = do
   s <- get
-  adcRegisterA s.b s.ccodes.cy
-  addPC 1
-
-adcC :: State8080M State8080
-adcC = do
-  s <- get
-  adcRegisterA s.c s.ccodes.cy
-  addPC 1
-
-adcD :: State8080M State8080
-adcD = do
-  s <- get
-  adcRegisterA s.d s.ccodes.cy
-  addPC 1
-
-adcE :: State8080M State8080
-adcE = do
-  s <- get
-  adcRegisterA s.e s.ccodes.cy
-  addPC 1
-
-adcH :: State8080M State8080
-adcH = do
-  s <- get
-  adcRegisterA s.h s.ccodes.cy
-  addPC 1
-
-adcL :: State8080M State8080
-adcL = do
-  s <- get
-  adcRegisterA s.l s.ccodes.cy
-  addPC 1
-
-adcA :: State8080M State8080
-adcA = do
-  s <- get
-  adcRegisterA s.a s.ccodes.cy
-  addPC 1
-
-adcRegisterA :: Word8 -> Word8 -> State8080M State8080
-adcRegisterA reg carry = do
-  s <- get
+  let carry = s.ccodes.cy
   if carry == 0
     then do
       addRegisterA reg
@@ -237,7 +198,7 @@ adcRegisterA reg carry = do
       let (total, ccodes_t) = addRegister s.a res
       let ccodes = ccodes_t{cy = ccodes_c.cy .|. ccodes_t.cy, ac = ccodes_c.ac .|. ccodes_t.ac}
       put s{a = total, ccodes = ccodes}
-      return s
+      addPC 1
 
 subRegisterA :: Word8 -> State8080M State8080
 subRegisterA reg = do
@@ -325,48 +286,16 @@ sbi = do
   put s{a = res', pc = s.pc + 2, ccodes = ccodes}
   return s
 
-inrB :: State8080M State8080
-inrB = do
-  s <- get
-  let (res, ccodes) = incRegister s.b s
-  put s{b = res, ccodes = ccodes}
-  addPC 1
+inrX :: String -> Q Exp
+inrX x = do
+  (s, get_stmt) <- getState_T
+  (x', get_value_x) <- getRecFieldValue_T x s
 
-inrD :: State8080M State8080
-inrD = do
-  s <- get
-  let (res, ccodes) = incRegister s.d s
-  put s{d = res, ccodes = ccodes}
-  addPC 1
-
-inrC :: State8080M State8080
-inrC = do
-  addPC 1
-  s <- get
-  let (res, ccodes) = incRegister s.c s
-  put s{c = res, ccodes = ccodes}
-  return s
-
-inrE :: State8080M State8080
-inrE = do
-  s <- get
-  let (res, ccodes) = incRegister s.e s
-  put s{e = res, ccodes = ccodes}
-  addPC 1
-
-inrH :: State8080M State8080
-inrH = do
-  s <- get
-  let (res, ccodes) = incRegister s.h s
-  put s{h = res, ccodes = ccodes}
-  addPC 1
-
-inrL :: State8080M State8080
-inrL = do
-  s <- get
-  let (res, ccodes) = incRegister s.l s
-  put s{l = res, ccodes = ccodes}
-  addPC 1
+  let (res', ccodes') = (mkName "res", mkName "ccodes")
+  let inc_call = AppE (VarE 'gets) (AppE (VarE 'incRegister) get_value_x)
+  let inc_result = BindS (TupP [VarP res', VarP ccodes']) inc_call
+  let put_expr = put_T s [(x', VarE res')] -- , (ccodes', VarE ccodes')]
+  return $ LamE [] $ DoE Nothing [get_stmt, inc_result, put_expr, addPC_T 1]
 
 inrM :: State8080M State8080
 inrM = do
@@ -374,13 +303,6 @@ inrM = do
   let (res, ccodes) = incRegister (getMem s) s
   toMem res
   put s{ccodes = ccodes}
-  addPC 1
-
-inrA :: State8080M State8080
-inrA = do
-  s <- get
-  let (res, ccodes) = incRegister s.a s
-  put s{a = res, ccodes = ccodes}
   addPC 1
 
 sbbAWithRegister :: Word8 -> State8080M State8080

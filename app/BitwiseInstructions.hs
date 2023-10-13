@@ -8,56 +8,25 @@ import Data.Bits (Bits (bit, xor), (.&.), (.^.), (.|.))
 import States
 import Utils
 import ArithInstructions (getCCodes)
+import Macros (getState_T, getRecFieldValue_T)
 
-ani :: Word8 -> State8080M State8080
-ani byte = do
-  s <- get
+-- TODO: rewrite everything inside here...its bad
 
-  let (res, cc) = bitwiseOp (.&.) s.a byte
-
-  put s{a = res, pc = s.pc + 2, ccodes = s.ccodes{si = cc.si, cy = cc.cy, z = cc.z, p = cc.p}}
-  return s
-
-ori :: State8080M State8080
-ori = do
-  s <- get
-
-  let immediate = getNNextByte s.program s.pc 1
-  let (res, cc) = bitwiseOp (.|.) s.a immediate
-
-  put s{a = res, pc = s.pc + 2, ccodes = s.ccodes{si = cc.si, cy = cc.cy, z = cc.z, p = cc.p}}
-  return s
-
-xri :: State8080M State8080
-xri = do
-  s <- get
-
-  let immediate = getNNextByte s.program s.pc 1
-  let (res, cc) = bitwiseOp xor s.a immediate
-
-  put s{a = res, pc = s.pc + 2, ccodes = s.ccodes{si = cc.si, cy = cc.cy, z = cc.z, p = cc.p}}
-  return s
-
-oram :: State8080M State8080
-oram = do
-  s <- get
-
-  let adr = concatBytesBE s.h s.l
-  let byte = getByteAtAdr s.program adr
-
-  let (res, cc) = bitwiseOp (.|.) s.a byte
-  put s{a = res, pc = s.pc + 2, ccodes = s.ccodes{si = cc.si, cy = cc.cy, z = cc.z, p = cc.p}}
-  return s
-
-xraa :: State8080M State8080
-xraa = do
+bitwiseAI :: (Word8 -> Word8 -> Word8) -> Word8 -> State8080M State8080 
+bitwiseAI operator im = do
+  bitwiseA operator im
+  -- bitwiseA already increases pc with 1
+  -- so just increase with one more
   addPC 1
-  s <- get
-  let (res, cc) = bitwiseOp xor s.a s.a
-  let cc' = cc{ac = s.ccodes.ac}
 
+bitwiseA :: (Word8 -> Word8 -> Word8) -> Word8 -> State8080M State8080
+bitwiseA operator reg = do
+  s <- get
+  let (res, cc) = bitwiseOp operator s.a reg
+  -- Keep previous aux carry
+  let cc' = cc{ac = s.ccodes.ac}
   put s{a = res, ccodes = cc'}
-  return s
+  addPC 1
 
 -- TODO: maybe change this to a function that uses state
 bitwiseOp :: (Word8 -> Word8 -> Word8) -> Word8 -> Word8 -> (Word8, CCState)

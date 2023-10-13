@@ -3,10 +3,11 @@
 module JumpInstructions where
 
 import Control.Monad.State
-import Data.Binary (Word16)
+import Data.Binary (Word16, Word8)
 import StackInstructions
 import States
 import Utils
+import ArithInstructions (subRegisterA, subRegister)
 
 jumpIf :: Bool -> Word16 -> State8080M State8080
 jumpIf cond adr = do
@@ -175,3 +176,15 @@ retIf bool = do
 
 retSetPC :: Word16 -> State8080M State8080
 retSetPC adr = setPC $ adr + 3
+
+cmpI :: Word8 -> State8080M State8080
+cmpI im = do
+  cmp im
+  addPC 1
+
+cmp :: Word8 -> State8080M State8080
+cmp reg = do
+  s <- get
+  let (_, ccodes) = subRegister s.a reg
+  put s{ccodes = ccodes}
+  addPC 1

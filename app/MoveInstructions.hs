@@ -6,6 +6,7 @@ module MoveInstructions where
 import Control.Monad.State
 import Data.Binary (Word16, Word8)
 import Language.Haskell.TH
+import Macros (addPC_T, getRecFieldValue_T, getState_T, put_T, recUpd_T)
 import States
 import Utils
 
@@ -37,18 +38,16 @@ mvIX x = do
 --   addPC 1
 movXY :: String -> String -> Q Exp
 movXY x y = do
-  s <- newName "s"
+  (s, get_stmt) <- getState_T
+  (y', get_y_expr) <- getRecFieldValue_T y s
   let x' = mkName x
-  let y' = mkName y
-  let y_access = AppE (VarE y') (VarE s)
-  let get_state = BindS (VarP s) (VarE 'get)
-  let put_state = NoBindS (AppE (VarE 'put) (RecUpdE (VarE s) [(x', y_access)]))
-  let update_pc = NoBindS (AppE (VarE 'addPC) (LitE (IntegerL 1)))
+  let put_stmt = put_T s [(x', get_y_expr)]
+
   return
     $ LamE []
     $ DoE
       Nothing
-      [get_state, put_state, update_pc]
+      [get_stmt, put_stmt, addPC_T 1]
 
 movIM :: State8080M State8080
 movIM = do

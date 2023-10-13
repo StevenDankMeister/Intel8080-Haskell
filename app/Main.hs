@@ -59,34 +59,34 @@ emulateNextOp = do
   if
     | op == 0x00 -> nop
     | op == 0x01 -> lxiB
-    | op == 0x04 -> inrB
+    | op == 0x04 -> $(inrX "b")
     | op == 0x05 -> dcrB
     | op == 0x06 -> $(mvIX "b") -- movIB
     | op == 0x09 -> dadB
-    | op == 0x0c -> inrC
+    | op == 0x0c -> $(inrX "c")
     | op == 0x0d -> dcrC
     | op == 0x0e -> movIC
     | op == 0x0f -> rrc
     | op == 0x11 -> lxiD
     | op == 0x13 -> inxD
-    | op == 0x14 -> inrD
+    | op == 0x14 -> $(inrX "d")
     | op == 0x15 -> dcrD
     | op == 0x16 -> mviD
     | op == 0x19 -> dadD
     | op == 0x1a -> ldaxD
-    | op == 0x1c -> inrE
+    | op == 0x1c -> $(inrX "e")
     | op == 0x1d -> dcrE
     | op == 0x1e -> mviE
     | op == 0x21 -> lxiH
     | op == 0x23 -> inxH
-    | op == 0x24 -> inrH
+    | op == 0x24 -> $(inrX "h")
     | op == 0x25 -> dcrH
     | op == 0x26 -> movIH
     | op == 0x29 -> dadH
     | op == 0x2a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lhld adr
-    | op == 0x2c -> inrL
+    | op == 0x2c -> $(inrX "l")
     | op == 0x2d -> dcrL
     | op == 0x2e -> mviL
     | op == 0x31 -> lxiSP
@@ -97,9 +97,8 @@ emulateNextOp = do
     | op == 0x3a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lda adr
-    | op == 0x3c -> inrA
+    | op == 0x3c -> $(inrX "a")
     | op == 0x3d -> dcrA
-    -- \| op == 0x3e -> movIA
     | op == 0x3e -> $(mvIX "a")
     | op == 0x40 -> nop
     | op == 0x41 -> $(movXY "b" "c") -- movBC
@@ -170,20 +169,23 @@ emulateNextOp = do
     | op == 0x83 -> addRegisterA s.e
     | op == 0x84 -> addRegisterA s.h
     | op == 0x85 -> addRegisterA s.l
+    | op == 0x86 -> addRegisterA $ getMem s
     | op == 0x87 -> addRegisterA s.a
-    | op == 0x88 -> adcB
-    | op == 0x89 -> adcC
-    | op == 0x8a -> adcD
-    | op == 0x8b -> adcE
-    | op == 0x8c -> adcH
-    | op == 0x8d -> adcL
-    | op == 0x8f -> adcA
+    | op == 0x88 -> adcRegisterA s.b 
+    | op == 0x89 -> adcRegisterA s.c 
+    | op == 0x8a -> adcRegisterA s.d 
+    | op == 0x8b -> adcRegisterA s.e 
+    | op == 0x8c -> adcRegisterA s.h 
+    | op == 0x8d -> adcRegisterA s.l 
+    | op == 0x8e -> adcRegisterA (getMem s) 
+    | op == 0x8f -> adcRegisterA s.a 
     | op == 0x90 -> subRegisterA s.b
     | op == 0x91 -> subRegisterA s.c
     | op == 0x92 -> subRegisterA s.d
     | op == 0x93 -> subRegisterA s.e
     | op == 0x94 -> subRegisterA s.h
     | op == 0x95 -> subRegisterA s.l
+    | op == 0x96 -> subRegisterA $ getMem s
     | op == 0x97 -> subRegisterA s.a
     | op == 0x98 -> sbbAWithRegister s.b
     | op == 0x99 -> sbbAWithRegister s.c
@@ -193,8 +195,38 @@ emulateNextOp = do
     | op == 0x9d -> sbbAWithRegister s.l
     | op == 0x9e -> sbbAWithRegister $ getMem s
     | op == 0x9f -> sbbAWithRegister s.a
-    | op == 0xaf -> xraa
-    | op == 0xb6 -> oram
+    | op == 0xa0 -> bitwiseA (.&.) s.b
+    | op == 0xa1 -> bitwiseA (.&.) s.c
+    | op == 0xa2 -> bitwiseA (.&.) s.d
+    | op == 0xa3 -> bitwiseA (.&.) s.e
+    | op == 0xa4 -> bitwiseA (.&.) s.h
+    | op == 0xa5 -> bitwiseA (.&.) s.l
+    | op == 0xa6 -> bitwiseA (.&.) $ getMem s
+    | op == 0xa7 -> bitwiseA (.&.) s.a
+    | op == 0xa8 -> bitwiseA xor s.b
+    | op == 0xa9 -> bitwiseA xor s.c
+    | op == 0xaa -> bitwiseA xor s.d
+    | op == 0xab -> bitwiseA xor s.e
+    | op == 0xac -> bitwiseA xor s.h
+    | op == 0xad -> bitwiseA xor s.l
+    | op == 0xae -> bitwiseA xor $ getMem s
+    | op == 0xaf -> bitwiseA xor s.a --xraa
+    | op == 0xb0 -> bitwiseA (.|.) s.b
+    | op == 0xb1 -> bitwiseA (.|.) s.c
+    | op == 0xb2 -> bitwiseA (.|.) s.d
+    | op == 0xb3 -> bitwiseA (.|.) s.e
+    | op == 0xb4 -> bitwiseA (.|.) s.h
+    | op == 0xb5 -> bitwiseA (.|.) s.l
+    | op == 0xb6 -> bitwiseA (.|.) $ getMem s
+    | op == 0xb7 -> bitwiseA (.|.) s.a
+    | op == 0xb8 -> cmp s.b
+    | op == 0xb9 -> cmp s.c
+    | op == 0xba -> cmp s.d
+    | op == 0xbb -> cmp s.e
+    | op == 0xbc -> cmp s.h
+    | op == 0xbd -> cmp s.l
+    | op == 0xbe -> cmp $ getMem s
+    | op == 0xbf -> cmp s.a
     | op == 0xc0 -> rnz
     | op == 0xc1 -> stackPopRegisterB
     | op == 0xc2 -> do
@@ -236,14 +268,14 @@ emulateNextOp = do
         jpo adr
     | op == 0xe4 -> cpo
     | op == 0xe5 -> stackPushRegisterH
-    | op == 0xe6 -> ani (getNNextByte s.program s.pc 1)
+    | op == 0xe6 -> bitwiseAI (.&.) $ getNextByte s  -- (getNNextByte s.program s.pc 1)
     | op == 0xe8 -> rpe
     | op == 0xea -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jpe adr
     | op == 0xeb -> xchg
     | op == 0xec -> cpe
-    | op == 0xee -> xri
+    | op == 0xee -> bitwiseAI xor $ getNextByte s
     | op == 0xf0 -> rp
     | op == 0xf1 -> stackPopPSW
     | op == 0xf2 -> do
@@ -251,7 +283,7 @@ emulateNextOp = do
         jp adr
     | op == 0xf4 -> cp
     | op == 0xf5 -> stackPushPSW
-    | op == 0xf6 -> ori
+    | op == 0xf6 -> bitwiseAI (.|.) $ getNextByte s
     | op == 0xf8 -> rm
     | op == 0xfa -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -259,7 +291,7 @@ emulateNextOp = do
     | op == 0xf9 -> sphl
     -- 0xfb
     | op == 0xfc -> cm
-    | op == 0xfe -> cpi (getNNextByte s.program s.pc 1)
+    | op == 0xfe -> cmpI $ getNextByte s --cpi (getNNextByte s.program s.pc 1)
     -- \| op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented op s
 
