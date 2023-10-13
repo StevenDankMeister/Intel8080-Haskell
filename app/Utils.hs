@@ -51,6 +51,14 @@ toMem byte = do
   put s{program = program}
   return s
 
+putAt :: Word8 -> Word16 -> State8080M State8080
+putAt byte adr = do
+  s <- get
+  let program' = insertIntoByteString byte s.program (fromIntegral adr)
+  put s{program = program'}
+  return s
+
+
 getParity :: (Bits a) => a -> Word8
 getParity bits = fromIntegral (complementBit (popCount bits `mod` 2) 0)
 

@@ -143,3 +143,10 @@ lhld adr = do
 
   put s{l = l, h = h, pc = s.pc + 3}
   return s
+
+shld :: Word16 -> State8080M State8080
+shld adr = do
+  s <- get
+  putAt s.l adr
+  putAt s.h (adr+1)
+  addPC 3

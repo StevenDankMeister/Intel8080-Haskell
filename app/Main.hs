@@ -81,6 +81,9 @@ emulateNextOp = do
     | op == 0x1d -> dcrE
     | op == 0x1e -> mviE
     | op == 0x21 -> lxiH
+    | op == 0x22 -> do
+        let adr = nextTwoBytesToWord16BE s.program s.pc
+        shld adr
     | op == 0x23 -> opxH (+)
     | op == 0x24 -> $(inrX "h")
     | op == 0x25 -> dcrH
