@@ -92,21 +92,35 @@ dcrRegister reg st = (res8, ccodes)
   (res8, _) = arithOp (-) reg 1
   ccodes = getCCodes (maskLower4Bytes reg == 0) (toEnum $ fromIntegral st.ccodes.cy) res8
 
-inxH :: State8080M State8080
-inxH = do
+opxH :: (Word16 -> Word16 -> Word16) -> State8080M State8080
+opxH op = do
   s <- get
-  let hl = concatBytesBE s.h s.l + 1
+  let hl = op (concatBytesBE s.h s.l) 1
   let (h, l) = word16ToWord8s hl
-  put s{h = h, l = l, pc = s.pc + 1}
-  return s
+  put s{h = h, l = l}
+  addPC 1
 
-inxD :: State8080M State8080
-inxD = do
+opxD :: (Word16 -> Word16 -> Word16) -> State8080M State8080
+opxD op = do
   s <- get
-  let de = concatBytesBE s.d s.e + 1
+  let de = op (concatBytesBE s.d s.e) 1
   let (d, e) = word16ToWord8s de
-  put s{d = d, e = e, pc = s.pc + 1}
-  return s
+  put s{d = d, e = e}
+  addPC 1
+
+opxB :: (Word16 -> Word16 -> Word16) -> State8080M State8080
+opxB op = do
+  s <- get
+  let bc = op (concatBytesBE s.b s.c) 1
+  let (b, c) = word16ToWord8s bc
+  put s{b=b,c=c}
+  addPC 1
+
+inxSP :: (Word16 -> Word16 -> Word16) -> State8080M State8080
+inxSP op = do
+  s <- get
+  put s{sp = op s.sp 1}
+  addPC 1
 
 dadB :: State8080M State8080
 dadB = do
@@ -286,6 +300,7 @@ sbi = do
   put s{a = res', pc = s.pc + 2, ccodes = ccodes}
   return s
 
+
 inrX :: String -> Q Exp
 inrX x = do
   (s, get_stmt) <- getState_T
@@ -301,6 +316,14 @@ inrM :: State8080M State8080
 inrM = do
   s <- get
   let (res, ccodes) = incRegister (getMem s) s
+  toMem res
+  put s{ccodes = ccodes}
+  addPC 1
+
+dcrM :: State8080M State8080
+dcrM = do
+  s <- get
+  let (res, ccodes) = dcrRegister (getMem s) s
   toMem res
   put s{ccodes = ccodes}
   addPC 1

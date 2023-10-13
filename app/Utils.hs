@@ -107,7 +107,9 @@ byteToFlags byte = res
   res = CCState{si = sign, z = zero, ac = aux, p = parity, cy = carry}
 
 word16ToWord8s :: Word16 -> (Word8, Word8)
-word16ToWord8s w = (fromIntegral (w `shiftR` 8), fromIntegral w)
+word16ToWord8s w = (high, low)
+  where high = fromIntegral (w `shiftR` 8)
+        low = fromIntegral w
 
 concatBytesBE :: Word8 -> Word8 -> Word16
 concatBytesBE hi lo = res

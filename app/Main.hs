@@ -59,26 +59,29 @@ emulateNextOp = do
   if
     | op == 0x00 -> nop
     | op == 0x01 -> lxiB
+    | op == 0x03 -> opxB (+)
     | op == 0x04 -> $(inrX "b")
     | op == 0x05 -> dcrB
     | op == 0x06 -> $(mvIX "b") -- movIB
     | op == 0x09 -> dadB
+    | op == 0x0b -> opxB (-)
     | op == 0x0c -> $(inrX "c")
     | op == 0x0d -> dcrC
     | op == 0x0e -> movIC
     | op == 0x0f -> rrc
     | op == 0x11 -> lxiD
-    | op == 0x13 -> inxD
+    | op == 0x13 -> opxD (+)
     | op == 0x14 -> $(inrX "d")
     | op == 0x15 -> dcrD
     | op == 0x16 -> mviD
     | op == 0x19 -> dadD
     | op == 0x1a -> ldaxD
+    | op == 0x1b -> opxD (-)
     | op == 0x1c -> $(inrX "e")
     | op == 0x1d -> dcrE
     | op == 0x1e -> mviE
     | op == 0x21 -> lxiH
-    | op == 0x23 -> inxH
+    | op == 0x23 -> opxH (+)
     | op == 0x24 -> $(inrX "h")
     | op == 0x25 -> dcrH
     | op == 0x26 -> movIH
@@ -86,6 +89,7 @@ emulateNextOp = do
     | op == 0x2a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lhld adr
+    | op == 0x2b -> opxH (-)
     | op == 0x2c -> $(inrX "l")
     | op == 0x2d -> dcrL
     | op == 0x2e -> mviL
@@ -93,6 +97,8 @@ emulateNextOp = do
     | op == 0x32 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         sta adr
+    | op == 0x34 -> inrM
+    | op == 0x35 -> dcrM
     | op == 0x36 -> movIM
     | op == 0x3a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
