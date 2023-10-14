@@ -307,6 +307,7 @@ emulateNextOp = do
     | op == 0xf2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jp adr
+    | op == 0xf3 -> di
     | op == 0xf4 -> cp
     | op == 0xf5 -> stackPushPSW
     | op == 0xf6 -> bitwiseAI (.|.) $ getNextByte s
@@ -314,6 +315,7 @@ emulateNextOp = do
     | op == 0xfa -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jm adr
+    | op == 0xfb -> ei
     | op == 0xf9 -> sphl
     -- 0xfb
     | op == 0xfc -> cm
@@ -391,35 +393,35 @@ rst 7 = do
   s <- get
   call 0x38
 
+-- main :: IO (State8080, State8080)
+-- main = do
+--   f <- openFile "../space-invaders.rom" ReadMode
+--   size <- hFileSize f
+--   buffer <- hGet f (fromIntegral size)
+--   let memory = buffer `BS.append` pack (replicate (0x10000 - fromIntegral size) 0)
+--   let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
+--
+--   let startState =
+--         State8080
+--           { a = 0
+--           , b = 0
+--           , c = 0
+--           , d = 0
+--           , e = 0
+--           , h = 0
+--           , l = 0
+--           , sp = 0
+--           , pc = 0
+--           , program = memory
+--           , stack = []
+--           , ccodes = ccodes
+--           , inte = 0
+--           }
+--   runStateT emulateProgram startState
+
 main :: IO (State8080, State8080)
 main = do
-  f <- openFile "../space-invaders.rom" ReadMode
-  size <- hFileSize f
-  buffer <- hGet f (fromIntegral size)
-  let memory = buffer `BS.append` pack (replicate (0x10000 - fromIntegral size) 0)
-  let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
-
-  let startState =
-        State8080
-          { a = 0
-          , b = 0
-          , c = 0
-          , d = 0
-          , e = 0
-          , h = 0
-          , l = 0
-          , sp = 0
-          , pc = 0
-          , program = memory
-          , stack = []
-          , ccodes = ccodes
-          , inte = 0
-          }
-  runStateT emulateProgram startState
-
-testCPU :: IO (State8080, State8080)
-testCPU = do
-  f <- openFile "../8080PRE.COM" ReadMode
+  f <- openFile "../8080EXM.COM" ReadMode
   size <- hFileSize f
   buffer <- hGet f $ fromIntegral size
   -- Program should start at 0x100

@@ -11,9 +11,11 @@ import Data.ByteString as BS (
   index,
   init,
   snoc,
-  splitAt,
+  splitAt, cons,
+  tail, singleton,take,drop
  )
 import States
+    ( State8080(pc, h, l, program), State8080M, CCState(..) )
 
 isEmpty :: [a] -> Bool
 isEmpty [] = True
@@ -98,10 +100,24 @@ getNextByte s = getNNextByte s.program s.pc 1
 getByteAtAdr :: ByteString -> Word16 -> Word8
 getByteAtAdr mem adr = mem `BS.index` fromIntegral adr
 
+-- insertIntoByteString :: Word8 -> ByteString -> Int -> ByteString
+-- insertIntoByteString byte bs n = (BS.init left `snoc` byte) `append` right
+--  where
+--   (left, right) = BS.splitAt (n + 1) bs
+
+-- insertIntoByteString :: Word8 -> ByteString -> Int -> ByteString
+-- insertIntoByteString byte bs n =  left `append` newRight
+--   where
+--     (left, right) = BS.splitAt n bs
+--     newRight = BS.cons byte right
+
 insertIntoByteString :: Word8 -> ByteString -> Int -> ByteString
-insertIntoByteString byte bs n = (BS.init left `snoc` byte) `append` right
- where
-  (left, right) = BS.splitAt (n + 1) bs
+insertIntoByteString byte bs n = left <> singleton byte <> right
+  where
+    (left, right) = (BS.take n bs, BS.drop (n+1) bs) -- BS.splitAt n bs
+-- insertIntoByteString byte bs n = vectorToByteString
+--   where 
+--     inner v = write v n byte
 
 flagsToByte :: CCState -> Word8
 flagsToByte ccstate = res

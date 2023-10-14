@@ -22,7 +22,6 @@ xthl = do
   putAt h_old $ s.sp + 1
 
   s <- get
-
   put s{l = l, h = h}
   addPC 1
 
@@ -39,29 +38,22 @@ stackPopRegisterB = do
   b <- stackPop
 
   s <- get
-  put s{b = b, c = c, pc = s.pc + 1}
-
-  return s
+  put s{b = b, c = c}
+  addPC 1
 
 stackPushRegisterB :: State8080M State8080
 stackPushRegisterB = do
   s <- get
   stackPush s.b
   stackPush s.c
-
-  s <- get
-  put s{pc = s.pc + 1}
-  return s
+  addPC 1
 
 stackPushRegisterD :: State8080M State8080
 stackPushRegisterD = do
   s <- get
   stackPush s.d
   stackPush s.e
-
-  s <- get
-  put s{pc = s.pc + 1}
-  return s
+  addPC 1
 
 stackPopRegisterD :: State8080M State8080
 stackPopRegisterD = do
@@ -69,19 +61,15 @@ stackPopRegisterD = do
   d <- stackPop
 
   s <- get
-  put s{d = d, e = e, pc = s.pc + 1}
-
-  return s
+  put s{d = d, e = e}
+  addPC 1
 
 stackPushRegisterH :: State8080M State8080
 stackPushRegisterH = do
   s <- get
   stackPush s.h
   stackPush s.l
-
-  s <- get
-  put s{pc = s.pc + 1}
-  return s
+  addPC 1
 
 stackPopRegisterH :: State8080M State8080
 stackPopRegisterH = do
@@ -89,9 +77,9 @@ stackPopRegisterH = do
   h <- stackPop
 
   s <- get
-  put s{h = h, l = l, pc = s.pc + 1}
+  put s{h = h, l = l}
+  addPC 1
 
-  return s
 
 stackPushPSW :: State8080M State8080
 stackPushPSW = do
@@ -100,10 +88,7 @@ stackPushPSW = do
 
   stackPush s.a
   stackPush psw
-
-  s <- get
-  put s{pc = s.pc + 1}
-  return s
+  addPC 1
 
 stackPop :: State8080M Word8
 stackPop = do
@@ -123,6 +108,5 @@ stackPopPSW = do
   let ccodes = byteToFlags flags
 
   s <- get
-  put s{a = a, ccodes = ccodes, pc = s.pc + 1}
-
-  return s
+  put s{a = a, ccodes = ccodes}
+  addPC 1

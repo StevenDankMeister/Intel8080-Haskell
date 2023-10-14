@@ -1,5 +1,5 @@
-{-# LANGUAGE TemplateHaskellQuotes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TemplateHaskellQuotes #-}
 
 module MoveInstructions where
 

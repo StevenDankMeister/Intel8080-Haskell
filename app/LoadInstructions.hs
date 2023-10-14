@@ -19,31 +19,31 @@ lxiB = do
   s <- get
   let b = getNNextByte s.program s.pc 2
   let c = getNNextByte s.program s.pc 1
-  put s{b = b, c = c, pc = s.pc + 3}
-  return s
+  put s{b = b, c = c}
+  addPC 3
 
 lxiD :: State8080M State8080
 lxiD = do
   s <- get
   let d = getNNextByte s.program s.pc 2
   let e = getNNextByte s.program s.pc 1
-  put s{d = d, e = e, pc = s.pc + 3}
-  return s
+  put s{d = d, e = e}
+  addPC 3
 
 lxiH :: State8080M State8080
 lxiH = do
   s <- get
   let h = getNNextByte s.program s.pc 2
   let l = getNNextByte s.program s.pc 1
-  put s{h = h, l = l, pc = s.pc + 3}
-  return s
+  put s{h = h, l = l}
+  addPC 3
 
 lxiSP :: State8080M State8080
 lxiSP = do
   s <- get
   let newSP = nextTwoBytesToWord16BE s.program s.pc
-  put s{sp = newSP, pc = s.pc + 3}
-  return s
+  put s{sp = newSP}
+  addPC 3
 
 ldaxB :: State8080M State8080
 ldaxB = do
@@ -58,8 +58,8 @@ ldaxD = do
   s <- get
   let adr = concatBytesBE s.d s.e
   let a = getByteAtAdr s.program adr
-  put s{a = a, pc = s.pc + 1}
-  return s
+  put s{a = a}
+  addPC 1
 
 staxB :: State8080M State8080
 staxB = do
