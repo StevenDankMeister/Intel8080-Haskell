@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE TemplateHaskellQuotes #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 
 module MoveInstructions where
 
@@ -148,5 +148,5 @@ shld :: Word16 -> State8080M State8080
 shld adr = do
   s <- get
   putAt s.l adr
-  putAt s.h (adr+1)
+  putAt s.h (adr + 1)
   addPC 3

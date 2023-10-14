@@ -113,56 +113,33 @@ opxB op = do
   s <- get
   let bc = op (concatBytesBE s.b s.c) 1
   let (b, c) = word16ToWord8s bc
-  put s{b=b,c=c}
+  put s{b = b, c = c}
   addPC 1
 
-inxSP :: (Word16 -> Word16 -> Word16) -> State8080M State8080
-inxSP op = do
+opxSP :: (Word16 -> Word16 -> Word16) -> State8080M State8080
+opxSP op = do
   s <- get
   put s{sp = op s.sp 1}
   addPC 1
 
-dadB :: State8080M State8080
-dadB = do
+dadX :: Word8 -> Word8 -> State8080M State8080
+dadX regH regL = do
   s <- get
   let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
-  let be = fromIntegral (concatBytesBE s.b s.c) :: Word32
-  let res = hl + be
+  let regHregL = fromIntegral (concatBytesBE regH regL) :: Word32
+  let res = hl + regHregL
+  let (h, l) = word16ToWord8s $ fromIntegral res
+
   let carry = if res > 0xffff then 1 else 0
 
-  let (h, l) = word16ToWord8s $ fromIntegral res
-  put s{h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes{cy = carry}}
-  return s
+  put s{h = h, l = l, ccodes = s.ccodes{cy = carry}}
+  addPC 1
 
-dadH :: State8080M State8080
-dadH = do
+dadSP :: State8080M State8080
+dadSP = do
   s <- get
-  let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
-  let res = hl + hl
-  let carry = if res > 0xffff then 1 else 0
-
-  let (h, l) = word16ToWord8s $ fromIntegral res
-
-  put s{h = h, l = l, pc = s.pc + 1, ccodes = s.ccodes{cy = carry}}
-  return s
-
-dadD :: State8080M State8080
-dadD = do
-  s <- get
-  let hl = fromIntegral (concatBytesBE s.h s.l) :: Word32
-  let de = fromIntegral (concatBytesBE s.d s.e) :: Word32
-  let res = hl + de
-  let carry = if res > 0xffff then 1 else 0
-
-  let (h, l) = word16ToWord8s $ fromIntegral res
-  put
-    s
-      { h = h
-      , l = l
-      , pc = s.pc + 1
-      , ccodes = s.ccodes{cy = carry}
-      }
-  return s
+  let (h, l) = word16ToWord8s s.sp
+  dadX h l
 
 addI :: Word8 -> State8080M State8080
 addI byte = do
@@ -300,7 +277,6 @@ sbi = do
   put s{a = res', pc = s.pc + 2, ccodes = ccodes}
   return s
 
-
 inrX :: String -> Q Exp
 inrX x = do
   (s, get_stmt) <- getState_T
@@ -362,7 +338,7 @@ addRegister operand1 operand2 = (res8, ccodes)
   (res8, res16) = arithOp (+) operand1 operand2
   op1_masked = maskLower4Bytes operand1
   op2_masked = maskLower4Bytes operand2
-  ccodes = getCCodes (op1_masked + op2_masked == 0xf) (res16 > 0xff) res8
+  ccodes = getCCodes (op1_masked + op2_masked > 0xf) (res16 > 0xff) res8
 
 getCCodes :: Bool -> Bool -> Word8 -> CCState
 getCCodes auxcond carrycond byte = res

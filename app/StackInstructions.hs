@@ -8,7 +8,23 @@ import States (
   State8080 (a, b, c, ccodes, d, e, h, l, pc, program, sp, stack),
   State8080M,
  )
-import Utils (byteToFlags, flagsToByte, getNNextByte, insertIntoByteString)
+import Utils (addPC, byteToFlags, flagsToByte, getByteAtAdr, getNNextByte, insertIntoByteString, isEmpty, putAt)
+
+xthl :: State8080M State8080
+xthl = do
+  s <- get
+  let l = getByteAtAdr s.program s.sp
+  let h = getByteAtAdr s.program $ s.sp + 1
+  let l_old = s.l
+  let h_old = s.h
+
+  putAt l_old s.sp
+  putAt h_old $ s.sp + 1
+
+  s <- get
+
+  put s{l = l, h = h}
+  addPC 1
 
 stackPush :: Word8 -> State8080M State8080
 stackPush byte = do
@@ -93,7 +109,10 @@ stackPop :: State8080M Word8
 stackPop = do
   s <- get
   let popped = getNNextByte s.program s.sp 0
-  put s{stack = Prelude.init s.stack, sp = s.sp + 1}
+  -- Stack is just for debugging so we need this
+  -- when pop instructions are used before push
+  let stack = if isEmpty s.stack then s.stack else Prelude.init s.stack
+  put s{stack = stack, sp = s.sp + 1}
   return popped
 
 stackPopPSW :: State8080M State8080

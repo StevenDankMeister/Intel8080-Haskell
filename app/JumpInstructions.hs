@@ -2,12 +2,12 @@
 
 module JumpInstructions where
 
+import ArithInstructions (subRegister, subRegisterA)
 import Control.Monad.State
 import Data.Binary (Word16, Word8)
 import StackInstructions
 import States
 import Utils
-import ArithInstructions (subRegisterA, subRegister)
 
 jumpIf :: Bool -> Word16 -> State8080M State8080
 jumpIf cond adr = do
@@ -115,7 +115,7 @@ callIf bool = do
 call :: Word16 -> State8080M State8080
 call adr = do
   s <- get
-  let (hi, lo) = word16ToWord8s s.pc
+  let (hi, lo) = word16ToWord8s $ s.pc + 3
 
   stackPush hi
   stackPush lo
@@ -171,11 +171,8 @@ retIf bool = do
       lo <- stackPop
       hi <- stackPop
       let adr = concatBytesBE hi lo
-      retSetPC adr
+      setPC adr
     else addPC 1
-
-retSetPC :: Word16 -> State8080M State8080
-retSetPC adr = setPC $ adr + 3
 
 cmpI :: Word8 -> State8080M State8080
 cmpI im = do

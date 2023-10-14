@@ -11,9 +11,8 @@ lda :: Word16 -> State8080M State8080
 lda adr = do
   s <- get
   let res = getByteAtAdr s.program adr
-  put s{a = res, pc = s.pc + 3}
-
-  return s
+  put s{a = res}
+  addPC 3
 
 lxiB :: State8080M State8080
 lxiB = do
@@ -46,6 +45,14 @@ lxiSP = do
   put s{sp = newSP, pc = s.pc + 3}
   return s
 
+ldaxB :: State8080M State8080
+ldaxB = do
+  s <- get
+  let adr = concatBytesBE s.b s.c
+  let a = getByteAtAdr s.program adr
+  put s{a = a}
+  addPC 1
+
 ldaxD :: State8080M State8080
 ldaxD = do
   s <- get
@@ -53,3 +60,17 @@ ldaxD = do
   let a = getByteAtAdr s.program adr
   put s{a = a, pc = s.pc + 1}
   return s
+
+staxB :: State8080M State8080
+staxB = do
+  s <- get
+  let adr = concatBytesBE s.b s.c
+  putAt s.a adr
+  addPC 1
+
+staxD :: State8080M State8080
+staxD = do
+  s <- get
+  let adr = concatBytesBE s.d s.e
+  putAt s.a adr
+  addPC 1

@@ -22,8 +22,10 @@ import Interrupts
 import JumpInstructions
 import LoadInstructions
 import MoveInstructions
+import Special
 import StackInstructions
 import States
+import System.Exit
 import Utils
 
 -- TODO: Fix this print
@@ -59,27 +61,33 @@ emulateNextOp = do
   if
     | op == 0x00 -> nop
     | op == 0x01 -> lxiB
+    | op == 0x02 -> staxB
     | op == 0x03 -> opxB (+)
     | op == 0x04 -> $(inrX "b")
     | op == 0x05 -> dcrB
-    | op == 0x06 -> $(mvIX "b") -- movIB
-    | op == 0x09 -> dadB
+    | op == 0x06 -> $(mvIX "b")
+    | op == 0x07 -> rlc
+    | op == 0x09 -> dadX s.b s.c -- dadB
+    | op == 0x0a -> ldaxB
     | op == 0x0b -> opxB (-)
     | op == 0x0c -> $(inrX "c")
     | op == 0x0d -> dcrC
     | op == 0x0e -> movIC
     | op == 0x0f -> rrc
     | op == 0x11 -> lxiD
+    | op == 0x12 -> staxD
     | op == 0x13 -> opxD (+)
     | op == 0x14 -> $(inrX "d")
     | op == 0x15 -> dcrD
     | op == 0x16 -> mviD
-    | op == 0x19 -> dadD
+    | op == 0x17 -> ral
+    | op == 0x19 -> dadX s.d s.e -- dadD
     | op == 0x1a -> ldaxD
     | op == 0x1b -> opxD (-)
     | op == 0x1c -> $(inrX "e")
     | op == 0x1d -> dcrE
     | op == 0x1e -> mviE
+    | op == 0x1f -> rar
     | op == 0x21 -> lxiH
     | op == 0x22 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
@@ -88,7 +96,8 @@ emulateNextOp = do
     | op == 0x24 -> $(inrX "h")
     | op == 0x25 -> dcrH
     | op == 0x26 -> movIH
-    | op == 0x29 -> dadH
+    | op == 0x27 -> daa
+    | op == 0x29 -> dadX s.h s.l -- dadH
     | op == 0x2a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lhld adr
@@ -96,19 +105,25 @@ emulateNextOp = do
     | op == 0x2c -> $(inrX "l")
     | op == 0x2d -> dcrL
     | op == 0x2e -> mviL
+    | op == 0x2f -> cma
     | op == 0x31 -> lxiSP
     | op == 0x32 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         sta adr
+    | op == 0x33 -> opxSP (+)
     | op == 0x34 -> inrM
     | op == 0x35 -> dcrM
     | op == 0x36 -> movIM
+    | op == 0x37 -> stc
+    | op == 0x39 -> dadSP
     | op == 0x3a -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         lda adr
+    | op == 0x3b -> opxSP (-)
     | op == 0x3c -> $(inrX "a")
     | op == 0x3d -> dcrA
     | op == 0x3e -> $(mvIX "a")
+    | op == 0x3f -> cmc
     | op == 0x40 -> nop
     | op == 0x41 -> $(movXY "b" "c") -- movBC
     | op == 0x42 -> $(movXY "b" "d") -- movBD
@@ -180,14 +195,14 @@ emulateNextOp = do
     | op == 0x85 -> addRegisterA s.l
     | op == 0x86 -> addRegisterA $ getMem s
     | op == 0x87 -> addRegisterA s.a
-    | op == 0x88 -> adcRegisterA s.b 
-    | op == 0x89 -> adcRegisterA s.c 
-    | op == 0x8a -> adcRegisterA s.d 
-    | op == 0x8b -> adcRegisterA s.e 
-    | op == 0x8c -> adcRegisterA s.h 
-    | op == 0x8d -> adcRegisterA s.l 
-    | op == 0x8e -> adcRegisterA (getMem s) 
-    | op == 0x8f -> adcRegisterA s.a 
+    | op == 0x88 -> adcRegisterA s.b
+    | op == 0x89 -> adcRegisterA s.c
+    | op == 0x8a -> adcRegisterA s.d
+    | op == 0x8b -> adcRegisterA s.e
+    | op == 0x8c -> adcRegisterA s.h
+    | op == 0x8d -> adcRegisterA s.l
+    | op == 0x8e -> adcRegisterA (getMem s)
+    | op == 0x8f -> adcRegisterA s.a
     | op == 0x90 -> subRegisterA s.b
     | op == 0x91 -> subRegisterA s.c
     | op == 0x92 -> subRegisterA s.d
@@ -219,7 +234,7 @@ emulateNextOp = do
     | op == 0xac -> bitwiseA xor s.h
     | op == 0xad -> bitwiseA xor s.l
     | op == 0xae -> bitwiseA xor $ getMem s
-    | op == 0xaf -> bitwiseA xor s.a --xraa
+    | op == 0xaf -> bitwiseA xor s.a -- xraa
     | op == 0xb0 -> bitwiseA (.|.) s.b
     | op == 0xb1 -> bitwiseA (.|.) s.c
     | op == 0xb2 -> bitwiseA (.|.) s.d
@@ -275,10 +290,12 @@ emulateNextOp = do
     | op == 0xe2 -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jpo adr
+    | op == 0xe3 -> xthl
     | op == 0xe4 -> cpo
     | op == 0xe5 -> stackPushRegisterH
-    | op == 0xe6 -> bitwiseAI (.&.) $ getNextByte s  -- (getNNextByte s.program s.pc 1)
+    | op == 0xe6 -> bitwiseAI (.&.) $ getNextByte s -- (getNNextByte s.program s.pc 1)
     | op == 0xe8 -> rpe
+    | op == 0xe9 -> pchl
     | op == 0xea -> do
         let adr = nextTwoBytesToWord16BE s.program s.pc
         jpe adr
@@ -300,7 +317,7 @@ emulateNextOp = do
     | op == 0xf9 -> sphl
     -- 0xfb
     | op == 0xfc -> cm
-    | op == 0xfe -> cmpI $ getNextByte s --cpi (getNNextByte s.program s.pc 1)
+    | op == 0xfe -> cmpI $ getNextByte s -- cpi (getNNextByte s.program s.pc 1)
     -- \| op == 0xff -> rst 7
     | otherwise -> do instructionNotImplemented op s
 
@@ -329,8 +346,8 @@ sphl :: State8080M State8080
 sphl = do
   s <- get
   let sp = concatBytesBE s.h s.l
-  put s{sp = sp, pc = s.pc + 1}
-  return s
+  put s{sp = sp}
+  addPC 1
 
 xchg :: State8080M State8080
 xchg = do
@@ -402,11 +419,11 @@ main = do
 
 testCPU :: IO (State8080, State8080)
 testCPU = do
-  f <- openFile "../TST8080.COM" ReadMode
+  f <- openFile "../8080PRE.COM" ReadMode
   size <- hFileSize f
   buffer <- hGet f $ fromIntegral size
   -- Program should start at 0x100
-  let memory = pack (replicate 0x100 0) `BS.append` buffer `BS.append` pack (replicate (0x10000 - fromIntegral size) 0)
+  let memory = pack (replicate 0x100 0) `BS.append` buffer `BS.append` pack (replicate (0x10000 - 0x100 - fromIntegral size) 0)
   let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
 
   -- 0xc9 is RET
@@ -434,44 +451,47 @@ runTest :: State8080M State8080
 runTest = do
   s <- get
   let pc = fromIntegral s.pc
-  -- Special test behaviour
-  if pc == 0x0005
-    then
-      if s.c == 9
-        then do
-          -- Start scanning from DE until '$' and print
-          let adr = fromIntegral $ concatBytesBE s.d s.e
-          let stop_char = fromIntegral $ fromEnum '$'
-          let output = BS.takeWhile (/= stop_char) (BS.drop adr s.program)
-          liftIO $ print output
-          emulateNextOp
-          runTest
-        else do
-          liftIO (print s.e)
-          -- runTest
-          return s
-    else
-      if pc < BS.length s.program
-        then do
-          emulateNextOp
-          s <- get
-          _ <- liftIO (dissasembleOp s.program pc)
-          liftIO $ putStrLn ("          " ++ show s)
-          runTest
-        else return s
+  if pc == 0
+    then liftIO exitSuccess
+    else -- Special test behaviour
+
+      if pc == 0x0005
+        then
+          if s.c == 9
+            then do
+              -- Start scanning from DE until '$' and print
+              let adr = fromIntegral $ concatBytesBE s.d s.e
+              let stop_char = fromIntegral $ fromEnum '$'
+              let output = BS.takeWhile (/= stop_char) (BS.drop adr s.program)
+              liftIO $ print output
+              emulateNextOp
+              runTest
+            else do
+              liftIO (print s.e)
+              -- runTest
+              return s
+        else
+          if pc < BS.length s.program
+            then do
+              emulateNextOp
+              s <- get
+              -- _ <- liftIO (dissasembleOp s.program pc)
+              -- liftIO $ putStrLn ("          " ++ show s)
+              runTest
+            else return s
 
 -- Just for some manual testing
 test :: IO (State8080, State8080)
 test = do
   let memory = pack (replicate 0x5 0)
-  let testbytes = pack [0x98]
-  let ccodes = CCState{cy = 1, ac = 0, si = 0, z = 0, p = 0}
+  let testbytes = pack [0x27]
+  let ccodes = CCState{cy = 0, ac = 0, si = 0, z = 0, p = 0}
 
   let test_memory = append testbytes memory
   let startState =
         State8080
-          { a = 0
-          , b = 1
+          { a = 0x9b
+          , b = 0
           , c = 0
           , d = 0
           , e = 0

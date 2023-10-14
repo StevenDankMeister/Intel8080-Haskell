@@ -15,10 +15,19 @@ import Data.ByteString as BS (
  )
 import States
 
+isEmpty :: [a] -> Bool
+isEmpty [] = True
+isEmpty _ = False
+
 maskLower4Bytes :: (Bits a, Num a) => a -> a
 maskLower4Bytes x = res
  where
   res = x .&. 0xf
+
+maskUpper4Bytes :: (Bits a, Num a) => a -> a
+maskUpper4Bytes x = res
+ where
+  res = x .&. 0xf0
 
 setPC :: Word16 -> State8080M State8080
 setPC adr = do
@@ -58,7 +67,6 @@ putAt byte adr = do
   put s{program = program'}
   return s
 
-
 getParity :: (Bits a) => a -> Word8
 getParity bits = fromIntegral (complementBit (popCount bits `mod` 2) 0)
 
@@ -88,7 +96,7 @@ getNextByte :: State8080 -> Word8
 getNextByte s = getNNextByte s.program s.pc 1
 
 getByteAtAdr :: ByteString -> Word16 -> Word8
-getByteAtAdr mem pc = mem `BS.index` fromIntegral pc
+getByteAtAdr mem adr = mem `BS.index` fromIntegral adr
 
 insertIntoByteString :: Word8 -> ByteString -> Int -> ByteString
 insertIntoByteString byte bs n = (BS.init left `snoc` byte) `append` right
@@ -116,8 +124,9 @@ byteToFlags byte = res
 
 word16ToWord8s :: Word16 -> (Word8, Word8)
 word16ToWord8s w = (high, low)
-  where high = fromIntegral (w `shiftR` 8)
-        low = fromIntegral w
+ where
+  high = fromIntegral (w `shiftR` 8)
+  low = fromIntegral w
 
 concatBytesBE :: Word8 -> Word8 -> Word16
 concatBytesBE hi lo = res
